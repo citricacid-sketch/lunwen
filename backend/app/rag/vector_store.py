@@ -20,7 +20,7 @@ from .embedder import BaseEmbedder, get_embedder
 
 logger = logging.getLogger(__name__)
 
-_DB_DIR = Path(__file__).parent.parent.parent / "vector_db"
+_DB_DIR = Path(__file__).parent.parent.parent.parent / "data" / "vector_db"
 _CHUNKS_FILE = "chunks.json"
 _EMBEDDINGS_FILE = "embeddings.npy"
 
@@ -44,13 +44,13 @@ class VectorStore:
         if chunks_path.exists():
             try:
                 self._chunks = json.loads(chunks_path.read_text("utf-8"))
-            except Exception:
+            except (json.JSONDecodeError, OSError):
                 self._chunks = []
 
         if emb_path.exists():
             try:
                 self._embeddings = np.load(emb_path)
-            except Exception:
+            except (ValueError, OSError):
                 self._embeddings = None
 
         if self._chunks and self._embeddings is not None and len(self._embeddings) > 0:

@@ -7,7 +7,8 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from docx import Document
 
-from app.db import get_db, User, Document
+from app.db import get_db, User
+from app.db.models import Document as DocRecord
 from app.auth import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -20,6 +21,28 @@ MAX_FILE_SIZE = 20 * 1024 * 1024  # 20MB
 # Magic bytes for file type verification
 DOCX_MAGIC = b"PK\x03\x04"
 PDF_MAGIC = b"%PDF"
+
+
+async def _validate_upload_file(file: UploadFile) -> tuple[str, bytes]:
+    """Common file validation: checks filename, extension, size, and reads content.
+    Returns (ext, content). Raises HTTPException on validation failure.
+    """
+    if not file.filename or not file.filename.strip():
+        raise HTTPException(status_code=400, detail="文件名不能为空")
+
+    ext = file.filename.rsplit(".", 1)[-1].lower().strip()
+    ext = f".{ext}"
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"不支持的文件类型: {ext}，仅支持 .docx / .pdf / .txt")
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="文件内容为空")
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail=f"文件过大，最大支持 {MAX_FILE_SIZE // 1024 // 1024}MB")
+
+    _verify_file_type(content, ext)
+    return ext, content
 
 
 def _verify_file_type(content: bytes, ext: str):
@@ -65,21 +88,7 @@ def extract_text_from_txt(content: bytes) -> str:
 
 @router.post("/upload/extract-text")
 async def extract_text(file: UploadFile = File(...)):
-    if not file.filename or not file.filename.strip():
-        raise HTTPException(status_code=400, detail="文件名不能为空")
-
-    ext = file.filename.rsplit(".", 1)[-1].lower().strip()
-    ext = f".{ext}"
-    if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail=f"不支持的文件类型: {ext}，仅支持 .docx / .pdf / .txt")
-
-    content = await file.read()
-    if not content:
-        raise HTTPException(status_code=400, detail="文件内容为空")
-    if len(content) > MAX_FILE_SIZE:
-        raise HTTPException(status_code=400, detail=f"文件过大，最大支持 {MAX_FILE_SIZE // 1024 // 1024}MB")
-
-    _verify_file_type(content, ext)
+    ext, content = await _validate_upload_file(file)
 
     try:
         if ext == ".docx":
@@ -102,16 +111,13 @@ async def extract_text(file: UploadFile = File(...)):
 
 @router.post("/export/docx")
 async def export_docx(text: str = Form(..., min_length=1)):
+    from docx.shared import Pt
     doc = Document()
-
-    style = doc.styles["Normal"]
-    font = style.font
-    font.size = 157000  # 12pt in EMU
 
     for line in text.split("\n"):
         p = doc.add_paragraph()
         run = p.add_run(line)
-        run.font.size = 157000
+        run.font.size = Pt(12)
 
     buf = io.BytesIO()
     doc.save(buf)
@@ -132,18 +138,7 @@ async def rag_upload(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if not file.filename or not file.filename.strip():
-        raise HTTPException(status_code=400, detail="文件名不能为空")
-
-    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
-    if ext not in ("pdf", "docx", "txt"):
-        raise HTTPException(status_code=400, detail=f"不支持的文件类型: .{ext}，仅支持 .pdf / .docx / .txt")
-
-    content = await file.read()
-    if not content:
-        raise HTTPException(status_code=400, detail="文件内容为空")
-    if len(content) > 20 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="文件过大，最大支持 20MB")
+    ext, content = await _validate_upload_file(file)
 
     try:
         from app.rag.manager import get_rag_manager
@@ -151,7 +146,7 @@ async def rag_upload(
         result = mgr.index_document(content, file.filename)
 
         # Save metadata to DB
-        doc_record = Document(
+        doc_record = DocRecord(
             user_id=user.id,
             filename=file.filename,
             chunk_count=result["chunk_count"],
@@ -161,11 +156,13 @@ async def rag_upload(
         await db.commit()
 
         return result
+    except HTTPException:
+        raise
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="请求参数有误，请检查输入")
     except Exception as e:
         logger.error(f"RAG upload error: {e}")
-        raise HTTPException(status_code=500, detail="文献索引失败")
+        raise HTTPException(status_code=500, detail="文献索引失败，请稍后重试")
 
 
 @router.get("/rag/documents")
@@ -174,7 +171,7 @@ async def rag_list(
     db: AsyncSession = Depends(get_db),
 ):
     from sqlalchemy import select as slc
-    result = await db.execute(slc(Document).where(Document.user_id == user.id))
+    result = await db.execute(slc(DocRecord).where(DocRecord.user_id == user.id))
     records = result.scalars().all()
     return [
         {
@@ -195,7 +192,7 @@ async def rag_delete(
     db: AsyncSession = Depends(get_db),
 ):
     from sqlalchemy import select as slc
-    result = await db.execute(slc(Document).where(Document.id == doc_id, Document.user_id == user.id))
+    result = await db.execute(slc(DocRecord).where(DocRecord.id == doc_id, DocRecord.user_id == user.id))
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(status_code=404, detail="文献记录不存在")

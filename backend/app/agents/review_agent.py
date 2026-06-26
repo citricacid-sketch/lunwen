@@ -194,8 +194,8 @@ class ReviewAgent(BaseAgent):
                     description=item.get("description", ""),
                     location=item.get("location", ""),
                 ))
-        except Exception as e:
-            logger.warning(f"LLM review failed, using rule-only result: {e}")
+        except (json.JSONDecodeError, ValueError, KeyError) as e:
+            logger.warning("LLM review JSON parsing failed, using rule-only result: %s", e)
             llm_score = rule_score
 
         # Merge scores (weighted: 40% rule, 60% LLM)

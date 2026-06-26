@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
-import { useAuth } from '../../contexts/AuthContext'
-import { AuthApi } from '../../services/api'
+import { useAuth } from '../contexts/AuthContext'
+import { AuthApi } from '../services/api'
 
 interface Props {
   onSuccess: () => void

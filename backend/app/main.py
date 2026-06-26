@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI):
         await init_db()
         logger.info("Database tables ready")
     except Exception as e:
-        logger.warning(f"DB init skipped (will retry on first request): {e}")
+        logger.warning("DB init skipped (will retry on first request): %s", e)
     yield
 
 
@@ -93,7 +93,7 @@ async def health_check():
                 "llm_available": True,
             }
     except Exception:
-        pass
+        logger.debug("Failed to read LLM config for health check")
     return {"status": "ok", "version": "1.0.0", **provider_info}
 
 

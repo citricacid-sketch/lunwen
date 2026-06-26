@@ -1,6 +1,6 @@
 const BASE = '/api'
 
-function getAuthHeaders(): Record<string, string> {
+export function getAuthHeaders(): Record<string, string> {
   const token = localStorage.getItem('lunwen_token')
   if (token) {
     return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
@@ -40,10 +40,11 @@ export const AuthApi = {
 
 // ── SSE Streaming ──
 
-async function parseSSEStream(
+type SSEHandlers = Record<string, (data: Record<string, unknown>) => void>
+
+async function parseSSEStreamCore(
   response: Response,
-  onDelta: (content: string) => void,
-  onDone: (data: Record<string, unknown>) => void,
+  handlers: SSEHandlers,
   onError: (err: { message: string; code: string }) => void,
   signal: AbortSignal,
 ) {
@@ -71,11 +72,10 @@ async function parseSSEStream(
         } else if (line.startsWith('data: ')) {
           try {
             const data = JSON.parse(line.slice(6))
-            if (event === 'delta') onDelta(data.content)
-            else if (event === 'done') onDone(data)
-            else if (event === 'error') onError(data)
+            const handler = handlers[event]
+            if (handler) handler(data)
           } catch {
-            // skip parse errors
+            // skip parse errors in SSE stream
           }
         }
       }
@@ -105,7 +105,11 @@ export function streamRewrite(
       onError({ message: err.detail || '请求失败', code: 'HTTP_ERROR' })
       return
     }
-    parseSSEStream(response, onDelta, onDone, onError, controller.signal)
+    parseSSEStreamCore(response, {
+      delta: (data) => onDelta(data.content as string),
+      done: onDone,
+      error: onError,
+    }, onError, controller.signal)
   }).catch((err) => {
     if (err.name !== 'AbortError') {
       onError({ message: err.message, code: 'NETWORK_ERROR' })
@@ -174,7 +178,11 @@ export function streamRewriteIterate(
       onError({ message: err.detail || '请求失败', code: 'HTTP_ERROR' })
       return
     }
-    parseSSEStream(response, onDelta, onDone, onError, controller.signal)
+    parseSSEStreamCore(response, {
+      delta: (data) => onDelta(data.content as string),
+      done: onDone,
+      error: onError,
+    }, onError, controller.signal)
   }).catch((err) => {
     if (err.name !== 'AbortError') {
       onError({ message: err.message, code: 'NETWORK_ERROR' })
@@ -201,7 +209,11 @@ export function streamDiagram(
       onError({ message: err.detail || '请求失败', code: 'HTTP_ERROR' })
       return
     }
-    parseSSEStream(response, onDelta, onDone, onError, controller.signal)
+    parseSSEStreamCore(response, {
+      delta: (data) => onDelta(data.content as string),
+      done: onDone,
+      error: onError,
+    }, onError, controller.signal)
   }).catch((err) => {
     if (err.name !== 'AbortError') {
       onError({ message: err.message, code: 'NETWORK_ERROR' })
@@ -239,62 +251,21 @@ export function streamAgentRewrite(
       onError({ message: err.detail || '请求失败', code: 'HTTP_ERROR' })
       return
     }
-    parseAgentSSE(response, onDelta, onStatus, onPreprocess, onRag, onReview, onDone, onError, controller.signal)
+    parseSSEStreamCore(response, {
+      delta: (data) => onDelta(data.content as string),
+      status: (data) => onStatus(data.stage as string, data.message as string),
+      preprocess: onPreprocess,
+      rag: onRag,
+      review: onReview,
+      done: onDone,
+      error: onError,
+    }, onError, controller.signal)
   }).catch((err) => {
     if (err.name !== 'AbortError') {
       onError({ message: err.message, code: 'NETWORK_ERROR' })
     }
   })
   return controller
-}
-
-async function parseAgentSSE(
-  response: Response,
-  onDelta: (content: string) => void,
-  onStatus: (stage: string, message: string) => void,
-  onPreprocess: (data: Record<string, unknown>) => void,
-  onRag: (data: Record<string, unknown>) => void,
-  onReview: (data: Record<string, unknown>) => void,
-  onDone: (data: Record<string, unknown>) => void,
-  onError: (err: { message: string; code: string }) => void,
-  signal: AbortSignal,
-) {
-  const reader = response.body?.getReader()
-  if (!reader) return
-  const decoder = new TextDecoder()
-  let buffer = ''
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done || signal.aborted) { await reader.cancel(); return }
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || ''
-      let event = ''
-      for (const line of lines) {
-        if (line.startsWith('event: ')) { event = line.slice(7).trim() }
-        else if (line.startsWith('data: ')) {
-          try {
-            const data = JSON.parse(line.slice(6))
-            switch (event) {
-              case 'delta': onDelta(data.content); break
-              case 'status': onStatus(data.stage, data.message); break
-              case 'preprocess': onPreprocess(data); break
-              case 'rag': onRag(data); break
-              case 'review': onReview(data); break
-              case 'done': onDone(data); break
-              case 'error': onError(data); break
-            }
-          } catch { /* skip */ }
-        }
-      }
-    }
-  } catch (err) {
-    if ((err as Error).name !== 'AbortError') {
-      onError({ message: (err as Error).message, code: 'NETWORK_ERROR' })
-    }
-  }
 }
 
 // ── History API (auth required) ──

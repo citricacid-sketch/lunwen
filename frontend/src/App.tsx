@@ -1,12 +1,12 @@
 import { useLocation } from 'react-router-dom'
 import { useAuth } from './contexts/AuthContext'
 import AppLayout from './components/Layout/AppLayout'
-import RewritePage from './components/Rewrite/RewritePage'
-import ERDiagramPage from './components/ERDiagram/ERDiagramPage'
-import ReferencePage from './components/Reference/ReferencePage'
-import SettingsPage from './components/Settings/SettingsPage'
-import ChatPage from './components/Chat/ChatPage'
-import LoginPage from './components/Auth/LoginPage'
+import RewritePage from './pages/RewritePage'
+import ERDiagramPage from './pages/ERDiagramPage'
+import ReferencePage from './pages/ReferencePage'
+import SettingsPage from './pages/SettingsPage'
+import ChatPage from './pages/ChatPage'
+import LoginPage from './pages/LoginPage'
 import LoadingSkeleton from './components/Shared/LoadingSkeleton'
 
 function PageContent() {

@@ -1,14 +1,14 @@
 import { useState } from 'react'
-import { useStreamRewrite } from '../../hooks/useStreamRewrite'
-import { useHistory } from '../../hooks/useHistory'
-import RewriteInput from './RewriteInput'
-import ComparisonView from './ComparisonView'
-import RewriteToolbar from './RewriteToolbar'
-import LoadingSkeleton from '../Shared/LoadingSkeleton'
-import ErrorAlert from '../Shared/ErrorAlert'
-import HistoryPanel from '../Shared/HistoryPanel'
+import { useStreamRewrite } from '../hooks/useStreamRewrite'
+import { useHistory } from '../hooks/useHistory'
+import RewriteInput from '../components/Rewrite/RewriteInput'
+import ComparisonView from '../components/Rewrite/ComparisonView'
+import RewriteToolbar from '../components/Rewrite/RewriteToolbar'
+import LoadingSkeleton from '../components/Shared/LoadingSkeleton'
+import ErrorAlert from '../components/Shared/ErrorAlert'
+import HistoryPanel from '../components/Shared/HistoryPanel'
 import { ChevronDown, ChevronRight, History } from 'lucide-react'
-import type { HistoryEntry } from '../../types'
+import type { HistoryEntry } from '../types'
 
 const MODE_LABELS: Record<string, string> = {
   rewrite: '学术润色',

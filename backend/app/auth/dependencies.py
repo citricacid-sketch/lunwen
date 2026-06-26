@@ -19,8 +19,8 @@ async def get_current_user(
 
     try:
         payload = decode_token(token)
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    except (ValueError, KeyError) as e:
+        raise HTTPException(status_code=401, detail="Invalid or expired token") from e
 
     user_id = int(payload["sub"])
     result = await db.execute(select(User).where(User.id == user_id))

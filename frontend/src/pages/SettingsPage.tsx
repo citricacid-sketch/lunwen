@@ -1,12 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Save, Wifi, CheckCircle, XCircle, Loader2, Trash2 } from 'lucide-react'
-
-function getAuthHeaders(): Record<string, string> {
-  const token = localStorage.getItem('lunwen_token')
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (token) headers['Authorization'] = `Bearer ${token}`
-  return headers
-}
+import { getAuthHeaders } from '../services/api'
 
 const PROVIDERS = [
   { id: 'openai', label: 'OpenAI', desc: 'GPT-4o, GPT-4o-mini 等' },
@@ -54,7 +48,7 @@ export default function SettingsPage() {
         setProfiles(data.profiles || [])
         if (data.presets) setPresets(data.presets)
       })
-      .catch(() => {})
+      .catch((e) => { console.error('Failed to load config:', e) })
   }
 
   useEffect(() => {
@@ -92,7 +86,7 @@ export default function SettingsPage() {
   const activateProfile = (id: string) => {
     fetch(`/api/config/activate/${id}`, { method: 'POST', headers: getAuthHeaders() })
       .then(() => loadProfiles())
-      .catch(() => {})
+      .catch((e) => { console.error('Failed to activate profile:', e) })
   }
 
   const deleteProfile = (id: string) => {
@@ -102,7 +96,7 @@ export default function SettingsPage() {
         if (editingId === id) startNew()
         loadProfiles()
       })
-      .catch(() => {})
+      .catch((e) => { console.error('Failed to delete profile:', e) })
   }
 
   const handleTest = async () => {

@@ -1,14 +1,14 @@
 import { useState } from 'react'
-import { useStreamDiagram } from '../../hooks/useStreamERDiagram'
-import { useHistory } from '../../hooks/useHistory'
-import DescriptionInput from './DescriptionInput'
-import DiagramView from './DiagramView'
-import EntityList from './EntityList'
-import LoadingSkeleton from '../Shared/LoadingSkeleton'
-import ErrorAlert from '../Shared/ErrorAlert'
-import HistoryPanel from '../Shared/HistoryPanel'
+import { useStreamDiagram } from '../hooks/useStreamERDiagram'
+import { useHistory } from '../hooks/useHistory'
+import DescriptionInput from '../components/ERDiagram/DescriptionInput'
+import DiagramView from '../components/ERDiagram/DiagramView'
+import EntityList from '../components/ERDiagram/EntityList'
+import LoadingSkeleton from '../components/Shared/LoadingSkeleton'
+import ErrorAlert from '../components/Shared/ErrorAlert'
+import HistoryPanel from '../components/Shared/HistoryPanel'
 import { ChevronDown, ChevronRight, History } from 'lucide-react'
-import type { DiagramType, HistoryEntry } from '../../types'
+import type { DiagramType, HistoryEntry } from '../types'
 
 export default function ERDiagramPage() {
   const [description, setDescription] = useState('')

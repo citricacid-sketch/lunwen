@@ -6,6 +6,7 @@ llm_config.json
 *.exe
 .venv/
 vector_db/
+data/
 __pycache__/
 *.py[cod]
 .idea/

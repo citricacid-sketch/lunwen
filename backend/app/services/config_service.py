@@ -36,8 +36,8 @@ def decrypt_api_key(cipher: str) -> str:
     try:
         return _fernet.decrypt(cipher.encode()).decode()
     except Exception:
-        logger.warning("Failed to decrypt API key")
-        return cipher
+        logger.warning("Failed to decrypt API key, may be from different machine")
+        return ""
 
 
 async def get_active_profile(db: AsyncSession, user_id: int) -> Optional[dict]:
@@ -104,8 +104,8 @@ def _sync_to_file_store(api_key: str, base_url: str, model: str, provider: str) 
         )
         store.save_profile(profile)
         store.activate("default")
-    except Exception as e:
-        logger.warning(f"Failed to sync to file store: {e}")
+    except (OSError, ValueError) as e:
+        logger.warning("Failed to sync to file store: %s", e)
 
 
 async def save_profile(

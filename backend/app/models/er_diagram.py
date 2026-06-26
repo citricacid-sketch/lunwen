@@ -18,7 +18,7 @@ class DiagramRequest(BaseModel):
 
 class EntityAttribute(BaseModel):
     name: str
-    type: str
+    attr_type: str = Field(alias="type")
     key: str | None = None
 
 
@@ -28,9 +28,9 @@ class Entity(BaseModel):
 
 
 class Relationship(BaseModel):
-    from_: str = Field(..., alias="from")
+    from_: str = Field(alias="from")
     to: str
-    type: str
+    rel_type: str = Field(alias="type")
     cardinality: str
 
 

@@ -4,6 +4,7 @@ import logging
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db, User
@@ -23,10 +24,25 @@ BLOCKED_PREFIXES = ("10.", "172.16.", "172.17.", "172.18.", "172.19.",
                     "172.30.", "172.31.", "192.168.", "127.", "0.")
 
 
+class ProfileSaveRequest(BaseModel):
+    id: int | None = None
+    name: str = Field(..., min_length=1, max_length=100)
+    provider: str = Field(default="openai", max_length=50)
+    api_key: str = Field(default="", max_length=500)
+    base_url: str = Field(default="", max_length=500)
+    model: str = Field(default="", max_length=100)
+
+
+class TestConfigRequest(BaseModel):
+    api_key: str = Field(..., min_length=1, max_length=500)
+    base_url: str = Field(default="", max_length=500)
+    model: str = Field(default="gpt-4o", max_length=100)
+
+
 def _validate_base_url(url: str) -> str:
     if not url:
         return url
-    if not (url.startswith("https://") or url.startswith("http://localhost") or url.startswith("http://127.0.0.1")):
+    if not url.startswith("https://"):
         raise HTTPException(status_code=400, detail="API 地址必须使用 HTTPS 协议")
     parsed = urlparse(url)
     host = (parsed.hostname or "").lower()
@@ -51,24 +67,27 @@ async def get_config(
 
 @router.post("/config/profile")
 async def create_or_update_profile(
-    body: dict,
+    body: ProfileSaveRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     try:
         return await save_profile(
             db, user.id,
-            profile_id=body.get("id"),
-            name=body.get("name", "未命名"),
-            provider=body.get("provider", "openai"),
-            api_key=body.get("api_key", ""),
-            base_url=_validate_base_url(body.get("base_url", "")),
-            model=body.get("model", ""),
+            profile_id=body.id,
+            name=body.name,
+            provider=body.provider,
+            api_key=body.api_key,
+            base_url=_validate_base_url(body.base_url),
+            model=body.model,
         )
     except HTTPException:
         raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail="请求参数有误，请检查输入")
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Failed to save profile: %s", e)
+        raise HTTPException(status_code=500, detail="保存配置失败，请稍后重试")
 
 
 @router.delete("/config/profile/{profile_id}")
@@ -79,8 +98,8 @@ async def remove_profile(
 ):
     try:
         return await delete_profile(db, user.id, profile_id)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="配置不存在")
 
 
 @router.post("/config/activate/{profile_id}")
@@ -91,23 +110,20 @@ async def set_active_profile(
 ):
     try:
         return await activate_profile(db, user.id, profile_id)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="配置不存在")
 
 
 @router.post("/config/test")
 async def test_config(
-    body: dict,
+    body: TestConfigRequest,
     user: User = Depends(get_current_user),
 ):
-    api_key = body.get("api_key", "")
-    base_url = _validate_base_url(body.get("base_url", ""))
-    model = body.get("model", "")
-    if not api_key:
-        raise HTTPException(status_code=400, detail="API Key 不能为空")
-    provider = OpenAIProvider(api_key=api_key, model=model or "gpt-4o", base_url=base_url or None)
+    base_url = _validate_base_url(body.base_url)
+    provider = OpenAIProvider(api_key=body.api_key, model=body.model or "gpt-4o", base_url=base_url or None)
     try:
         response = await provider.generate("重复'连接成功'两个字，不要输出其他内容。", "测试连接")
         return {"ok": True, "response": response.strip()}
-    except Exception:
+    except Exception as e:
+        logger.error("Config test failed: %s", e)
         raise HTTPException(status_code=400, detail="连接测试失败，请检查 API Key 和地址是否正确")

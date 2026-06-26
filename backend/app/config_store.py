@@ -3,49 +3,39 @@ import os
 import sys
 import tempfile
 import base64
+import hashlib
 import logging
 from pathlib import Path
 from pydantic import BaseModel
+from cryptography.fernet import Fernet
 
 logger = logging.getLogger(__name__)
 
-# When frozen (PyInstaller), place config next to the executable.
-# Otherwise use the backend directory.
 if getattr(sys, 'frozen', False):
     _EXE_DIR = Path(sys.executable).parent
     CONFIG_FILE = _EXE_DIR / "llm_config.json"
 else:
     CONFIG_FILE = Path(__file__).parent.parent / "llm_config.json"
 
-# Simple key derivation for local encryption (not military-grade,
-# but prevents casual reading of API keys from the config file)
-def _derive_key() -> bytes:
-    import hashlib
-    # Mix hostname + fixed salt for a machine-local key
+# Fernet key derived from machine-local secret (same as config_service.py)
+def _derive_fernet() -> Fernet:
     host = os.environ.get("COMPUTERNAME", os.environ.get("HOSTNAME", "localhost"))
-    return hashlib.sha256(f"lunwen-key-v1:{host}".encode()).digest()
-
-def _xor_bytes(data: bytes, key: bytes) -> bytes:
-    return bytes(d ^ key[i % len(key)] for i, d in enumerate(data))
+    key = base64.urlsafe_b64encode(hashlib.sha256(f"lunwen-fernet-v2:{host}".encode()).digest())
+    return Fernet(key)
 
 def _encrypt(plain: str) -> str:
     if not plain:
         return ""
-    key = _derive_key()
-    encrypted = _xor_bytes(plain.encode("utf-8"), key)
-    return base64.urlsafe_b64encode(encrypted).decode()
+    return _derive_fernet().encrypt(plain.encode()).decode()
 
 def _decrypt(cipher: str) -> str:
     if not cipher:
         return ""
     try:
-        key = _derive_key()
-        encrypted = base64.urlsafe_b64decode(cipher)
-        return _xor_bytes(encrypted, key).decode("utf-8")
+        return _derive_fernet().decrypt(cipher.encode()).decode()
     except Exception:
-        # May have been encrypted on a different machine, or is plaintext
-        logger.warning("Failed to decrypt, returning as-is")
-        return cipher
+        logger.warning("Failed to decrypt API key (may be from different machine)")
+        return ""
 
 PROVIDER_PRESETS = {
     "openai": {"label": "OpenAI", "base_url": "https://api.openai.com/v1", "models": ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "o4-mini"]},
@@ -95,26 +85,40 @@ class ConfigStore:
                         base_url=raw.get("base_url", "https://api.openai.com/v1"),
                         model=raw.get("model", "gpt-4o"),
                     )
-                    profile.set_api_key(raw.get("api_key", ""))
+                    # Migrate old plaintext or XOR-encrypted key
+                    stored_key = raw.get("api_key", "")
+                    if stored_key:
+                        try:
+                            if _decrypt(stored_key):
+                                profile.api_key = stored_key
+                            else:
+                                profile.set_api_key(stored_key)
+                        except Exception:
+                            profile.set_api_key(stored_key)
                     self._data = LLMConfigData(profiles=[profile], active="default")
                     self._save()
                     return self._data
                 for p in raw.get("profiles", []):
-                    if p.get("api_key") and not p["api_key"].endswith("="):
-                        p["api_key"] = _encrypt(p["api_key"])
+                    stored_key = p.get("api_key", "")
+                    if stored_key and not stored_key.startswith("gAAAA"):
+                        try:
+                            p["api_key"] = _encrypt(stored_key)
+                        except Exception:
+                            p["api_key"] = ""
                 self._data = LLMConfigData(**raw)
                 self._save()
                 return self._data
-            except Exception as e:
-                logger.warning(f"Failed to load config: {e}")
+            except (json.JSONDecodeError, ValueError, TypeError) as e:
+                logger.warning("Failed to load config file, recreating: %s", e)
 
         from app.config import settings
         profile = LLMProfile(
-            id="default", name="默认配置", provider="openai",
+            id="default", name="默认配置", provider=settings.llm_provider or "openai",
             base_url=settings.openai_base_url or "https://api.openai.com/v1",
             model=settings.openai_model or "gpt-4o",
         )
-        profile.set_api_key(settings.openai_api_key or "")
+        if settings.openai_api_key:
+            profile.set_api_key(settings.openai_api_key)
         self._data = LLMConfigData(profiles=[profile], active="default")
         return self._data
 
@@ -157,7 +161,6 @@ class ConfigStore:
 
     def save_profile(self, profile: LLMProfile) -> dict:
         data = self._load()
-        # Encrypt the key before storing
         raw_key = profile.api_key
         profile.set_api_key(raw_key)
         if not profile.id:
@@ -174,9 +177,8 @@ class ConfigStore:
         if not data.active or data.active == profile.id:
             data.active = profile.id
         self._save()
-        # Restore plain key for in-memory active use
         profile.api_key = raw_key
-        logger.info(f"Saved profile: {profile.name}")
+        logger.info("Saved profile: %s", profile.name)
         return {"ok": True, "id": profile.id}
 
     def delete_profile(self, profile_id: str) -> dict:
@@ -194,7 +196,7 @@ class ConfigStore:
             raise ValueError(f"Profile not found: {profile_id}")
         data.active = profile_id
         self._save()
-        logger.info(f"Activated: {profile.name}")
+        logger.info("Activated: %s", profile.name)
         return {"ok": True, "provider": profile.provider, "model": profile.model}
 
     def get_presets(self) -> dict:

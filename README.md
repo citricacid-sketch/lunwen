@@ -204,22 +204,27 @@ lunwen/
 │   └── run.py                  # 开发启动脚本
 ├── frontend/                   # React + TypeScript 前端
 │   └── src/
+│       ├── pages/              # 页面组件
+│       │   ├── LoginPage.tsx    # 登录/注册
+│       │   ├── RewritePage.tsx  # 论文写作助手
+│       │   ├── ERDiagramPage.tsx# 图表生成
+│       │   ├── ChatPage.tsx     # 多 Agent 对话
+│       │   ├── ReferencePage.tsx# 文献管理
+│       │   └── SettingsPage.tsx # 模型配置
 │       ├── components/
-│       │   ├── Auth/           # 登录/注册页面
-│       │   ├── Chat/           # 多 Agent 对话页面
-│       │   ├── ERDiagram/      # 图表生成页面
+│       │   ├── Auth/           # 登录子组件
+│       │   ├── Chat/           # 对话子组件
+│       │   ├── ERDiagram/      # 图表子组件
 │       │   ├── Layout/         # 应用壳 + 侧边栏
-│       │   ├── Reference/      # 文献管理页面
-│       │   ├── Rewrite/        # 写作助手页面
-│       │   ├── Settings/       # 模型配置页面
+│       │   ├── Reference/      # 文献子组件
+│       │   ├── Rewrite/        # 写作子组件
 │       │   └── Shared/         # 共用组件
 │       ├── contexts/           # React Context（Auth）
 │       ├── hooks/              # 自定义 Hooks（SSE 流式处理）
 │       ├── services/           # API 客户端
 │       └── types/              # TypeScript 类型定义
 ├── docker-compose.yml          # MySQL + 后端容器编排
-├── Dockerfile                  # 多阶段构建（前端构建 + 后端运行）
-└── build.spec                  # PyInstaller 打包配置
+└── Dockerfile                  # 多阶段构建（前端构建 + 后端运行）
 ```
 
 ## 常见问题

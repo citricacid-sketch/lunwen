@@ -4,7 +4,7 @@ import json
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select, delete
@@ -52,7 +52,7 @@ async def rewrite_stream(request: RewriteRequest):
             }
             yield f"event: done\ndata: {json.dumps(done, ensure_ascii=False)}\n\n"
         except Exception as e:
-            logger.error(f"Stream error: {type(e).__name__}")
+            logger.error(f"Stream error: {type(e).__name__}: {e}")
             yield f"event: error\ndata: {json.dumps({'message': '服务处理失败，请稍后重试', 'code': 'LLM_ERROR'}, ensure_ascii=False)}\n\n"
 
     return _sse(gen)
@@ -80,7 +80,7 @@ async def rewrite_iterate_stream(request: RewriteIterateRequest):
             yield f"event: done\ndata: {json.dumps(done, ensure_ascii=False)}\n\n"
         except Exception as e:
             logger.error(f"Iterate stream error: {e}")
-            yield f"event: error\ndata: {json.dumps({'message': str(e), 'code': 'LLM_ERROR'}, ensure_ascii=False)}\n\n"
+            yield f"event: error\ndata: {json.dumps({'message': '服务处理失败，请稍后重试', 'code': 'LLM_ERROR'}, ensure_ascii=False)}\n\n"
 
     return _sse(gen)
 
@@ -98,7 +98,7 @@ async def chat_stream(request: ChatRequest):
             yield f"event: done\ndata: {json.dumps({'length': len(result)}, ensure_ascii=False)}\n\n"
         except Exception as e:
             logger.error(f"Chat stream error: {e}")
-            yield f"event: error\ndata: {json.dumps({'message': str(e), 'code': 'LLM_ERROR'}, ensure_ascii=False)}\n\n"
+            yield f"event: error\ndata: {json.dumps({'message': '服务处理失败，请稍后重试', 'code': 'LLM_ERROR'}, ensure_ascii=False)}\n\n"
 
     return _sse(gen)
 
@@ -138,7 +138,7 @@ async def agent_rewrite_stream(
                 yield f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
         except Exception as e:
             logger.error(f"Agent stream error: {e}")
-            yield f"event: error\ndata: {json.dumps({'message': str(e), 'code': 'AGENT_ERROR'}, ensure_ascii=False)}\n\n"
+            yield f"event: error\ndata: {json.dumps({'message': '服务处理失败，请稍后重试', 'code': 'AGENT_ERROR'}, ensure_ascii=False)}\n\n"
 
     return _sse(gen)
 
@@ -156,13 +156,13 @@ class SaveHistoryRequest(BaseModel):
 
 @router.get("/history")
 async def list_history(
-    type: str | None = None,
+    history_type: str | None = Query(None, alias="type"),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(History).where(History.user_id == user.id)
-    if type:
-        stmt = stmt.where(History.type == type)
+    if history_type:
+        stmt = stmt.where(History.type == history_type)
     stmt = stmt.order_by(History.created_at.desc()).limit(100)
     result = await db.execute(stmt)
     records = result.scalars().all()

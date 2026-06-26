@@ -127,7 +127,7 @@ class _ResilientEmbedder(BaseEmbedder):
                 logger.info("Using OpenAI API embedder")
                 return
         except Exception:
-            pass
+            logger.debug("API embedder not available, trying next option")
 
         # Try local sentence-transformers
         try:
@@ -136,7 +136,7 @@ class _ResilientEmbedder(BaseEmbedder):
             logger.info("Using local sentence-transformers embedder")
             return
         except ImportError:
-            pass
+            logger.debug("sentence-transformers not installed, using TF-IDF fallback")
 
         # TF-IDF fallback
         self._inner = self._fallback

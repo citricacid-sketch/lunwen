@@ -90,7 +90,7 @@ class AgentOrchestrator:
                     yield _sse("rag", {"chunks_found": 0, "sources": []})
             except Exception as e:
                 logger.warning(f"RAG retrieval failed: {e}")
-                yield _sse("rag", {"chunks_found": 0, "sources": [], "error": str(e)})
+                yield _sse("rag", {"chunks_found": 0, "sources": []})
 
         # ── Stage 3: Multi-Agent Loop ──
         current_text = ""

@@ -1,7 +1,7 @@
 import { useState, useRef, type FormEvent, type KeyboardEvent, type ChangeEvent } from 'react'
-import { useChat } from '../../hooks/useChat'
-import ChatMessage from './ChatMessage'
-import { uploadAndExtractText } from '../../services/api'
+import { useChat } from '../hooks/useChat'
+import ChatMessage from '../components/Chat/ChatMessage'
+import { uploadAndExtractText } from '../services/api'
 import toast from 'react-hot-toast'
 import { Send, Square, Trash2, MessageSquare, Upload, Loader2, FileText } from 'lucide-react'
 

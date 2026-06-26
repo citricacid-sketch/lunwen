@@ -51,8 +51,7 @@ async def diagram_generate_stream(request: DiagramRequest):
             yield f"event: done\ndata: {done_data.model_dump_json()}\n\n"
         except Exception as e:
             logger.error(f"Diagram stream error: {e}")
-            error_data = {"message": f"图表生成失败: {str(e)}", "code": "LLM_ERROR"}
-            yield f"event: error\ndata: {json.dumps(error_data, ensure_ascii=False)}\n\n"
+            yield f"event: error\ndata: {json.dumps({'message': '服务处理失败，请稍后重试', 'code': 'LLM_ERROR'}, ensure_ascii=False)}\n\n"
 
     return _make_sse_response(event_generator)
 
@@ -63,10 +62,10 @@ async def diagram_generate(request: DiagramRequest):
         result = await service.generate(request.description, request.diagram_type)
         return DiagramResponse(**result)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="请求参数有误，请检查输入")
     except Exception as e:
         logger.error(f"Diagram generation error: {e}")
-        raise HTTPException(status_code=500, detail=f"图表生成出错: {str(e)}")
+        raise HTTPException(status_code=500, detail="图表生成失败，请稍后重试")
 
 
 # Backward-compatible ER diagram endpoints
@@ -82,7 +81,7 @@ async def er_diagram_generate(request: ERDiagramRequest):
         result = await service.generate(request.description, "er")
         return ERDiagramResponse(**result)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="请求参数有误，请检查输入")
     except Exception as e:
         logger.error(f"ER diagram generation error: {e}")
-        raise HTTPException(status_code=500, detail=f"ER图生成出错: {str(e)}")
+        raise HTTPException(status_code=500, detail="ER图生成失败，请稍后重试")

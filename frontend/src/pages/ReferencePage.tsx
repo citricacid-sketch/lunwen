@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type ChangeEvent, useRef } from 'react'
-import { useStreamRewrite } from '../../hooks/useStreamRewrite'
-import { uploadAndExtractText } from '../../services/api'
-import { downloadText } from '../../utils'
+import { useStreamRewrite } from '../hooks/useStreamRewrite'
+import { uploadAndExtractText } from '../services/api'
+import { downloadText } from '../utils'
 import toast from 'react-hot-toast'
 import {
   BookOpen, Upload, Loader2, FileText, Copy, Download, Trash2,
