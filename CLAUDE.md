@@ -2,9 +2,9 @@
 
 ## 会话启动
 
-**每次对话开始时，先连接 Obsidian vault：**
-- 读取 `D:/DATA/Obs/claude/synthesis/Synthesis Index.md` 了解已有经验
+**每次对话开始时：**
 - 读取本文件了解项目规范
+- 读取 Obsidian vault 中的 `Synthesis Index.md` 了解已有经验
 
 ## 项目定位
 
@@ -26,7 +26,7 @@
 
 ### 知识归档
 重要决策做完即记，两层都要写：
-- **Obsidian vault**: `D:/DATA/Obs/claude/synthesis/` 写笔记，更新 `Synthesis Index.md`
+- **Obsidian vault**: 写笔记，更新 Synthesis Index
 - **Claude memory**: 决策/偏好写入 `memory/` 目录
 
 ### 技术决策（已确定，不要重复讨论）
