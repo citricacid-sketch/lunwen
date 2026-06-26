@@ -1,0 +1,10 @@
+node_modules/
+dist/
+build_temp/
+.env
+llm_config.json
+*.exe
+.venv/
+vector_db/
+__pycache__/
+*.py[cod]
