@@ -1,5 +1,13 @@
+/**
+ * ERDiagram/DiagramToolbar.tsx — 图表工具栏
+ *
+ * 提供：
+ *   - 图表/源码模式切换
+ *   - 导出 HTML 文件（图表模式下）
+ *   - 复制源码（源码模式下）
+ */
 import { Code, Eye, Download } from 'lucide-react'
-import CopyButton from '../Shared/CopyButton'
+import { CopyButton } from '../Shared/CopyButton'
 import { downloadText } from '../../utils'
 
 interface Props {
@@ -8,7 +16,7 @@ interface Props {
   onModeChange: (mode: 'diagram' | 'source') => void
 }
 
-export default function DiagramToolbar({ htmlCode, mode, onModeChange }: Props) {
+export function DiagramToolbar({ htmlCode, mode, onModeChange }: Props) {
 
   const handleExportHTML = () => {
     downloadText('diagram.html', htmlCode)
@@ -16,6 +24,7 @@ export default function DiagramToolbar({ htmlCode, mode, onModeChange }: Props) 
 
   return (
     <div className="flex items-center gap-2">
+      {/* 模式切换 */}
       <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
         <button
           onClick={() => onModeChange('diagram')}
@@ -25,8 +34,7 @@ export default function DiagramToolbar({ htmlCode, mode, onModeChange }: Props) 
               : 'text-gray-500 hover:text-gray-700'
           }`}
         >
-          <Eye size={14} />
-          图表
+          <Eye size={14} />图表
         </button>
         <button
           onClick={() => onModeChange('source')}
@@ -36,8 +44,7 @@ export default function DiagramToolbar({ htmlCode, mode, onModeChange }: Props) 
               : 'text-gray-500 hover:text-gray-700'
           }`}
         >
-          <Code size={14} />
-          源码
+          <Code size={14} />源码
         </button>
       </div>
 
@@ -48,8 +55,7 @@ export default function DiagramToolbar({ htmlCode, mode, onModeChange }: Props) 
           onClick={handleExportHTML}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-md hover:bg-gray-50 transition-colors"
         >
-          <Download size={14} />
-          导出 HTML
+          <Download size={14} />导出 HTML
         </button>
       ) : (
         <CopyButton text={htmlCode} label="复制源码" />

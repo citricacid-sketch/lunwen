@@ -1,4 +1,25 @@
+/**
+ * pages/ReferencePage.tsx — 参考文献格式化页面
+ *
+ * 将任意格式的参考文献整理为 GB/T 7714-2015 国家标准格式。
+ *
+ * === 解析逻辑 ===
+ *   后端返回的格式化文本中，每条文献格式为：
+ *     [序号] [类型] 文献内容
+ *   parseReferences() 将其解析为结构化数组，逐条展示。
+ *
+ * === 支持的文献类型 ===
+ *   J(期刊) M(专著) D(学位论文) C(会议) P(专利) EB/OL(电子资源) S(标准)
+ *
+ * === 文件上传 ===
+ *   使用 ahooks useRequest 管理上传状态。
+ *   上传后自动将提取的文本填入 textarea。
+ *
+ * === 复制反馈 ===
+ *   使用 useTimeout 实现"复制成功"的临时视觉反馈（1.5 秒后消失）。
+ */
 import { useState, type FormEvent, type ChangeEvent, useRef } from 'react'
+import { useRequest, useTimeout } from 'ahooks'
 import { useStreamRewrite } from '../hooks/useStreamRewrite'
 import { uploadAndExtractText } from '../services/api'
 import { downloadText } from '../utils'
@@ -14,9 +35,14 @@ interface FormattedRef {
   text: string
 }
 
+/**
+ * 解析后端返回的格式化参考文献文本
+ *
+ * 优先匹配结构化格式: [N] [TYPE] content
+ * 如果匹配不到（非标准输出），退化为按空行分割
+ */
 function parseReferences(raw: string): FormattedRef[] {
   const refs: FormattedRef[] = []
-  // Match pattern: [N] [TYPE] content
   const lines = raw.split('\n')
   for (const line of lines) {
     const match = line.match(/^\[(\d+)\]\s*\[([A-Z/]+)\]\s*(.+)/)
@@ -28,7 +54,7 @@ function parseReferences(raw: string): FormattedRef[] {
       })
     }
   }
-  // If no structured output, fall back to splitting by empty lines
+  // 退化方案：按空行分割
   if (refs.length === 0) {
     const blocks = raw.split(/\n\s*\n/).filter(b => b.trim())
     blocks.forEach((block, i) => {
@@ -43,6 +69,7 @@ function parseReferences(raw: string): FormattedRef[] {
   return refs
 }
 
+/** 文献类型 → Tailwind 颜色映射 */
 const TYPE_COLORS: Record<string, string> = {
   'J': 'bg-blue-100 text-blue-700',
   'M': 'bg-amber-100 text-amber-700',
@@ -53,6 +80,7 @@ const TYPE_COLORS: Record<string, string> = {
   'S': 'bg-gray-100 text-gray-700',
 }
 
+/** 文献类型缩写 → 中文名称 */
 const TYPE_LABELS: Record<string, string> = {
   'J': '期刊',
   'M': '专著',
@@ -63,14 +91,34 @@ const TYPE_LABELS: Record<string, string> = {
   'S': '标准',
 }
 
-export default function ReferencePage() {
+export function ReferencePage() {
   const [text, setText] = useState('')
-  const [uploading, setUploading] = useState(false)
-  const [uploadedFile, setUploadedFile] = useState('')
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
+  const prevTextRef = useRef('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { streamedText, isStreaming, error, doneData, trigger, abort, reset } = useStreamRewrite()
+
+  useTimeout(() => setCopiedIdx(null), copiedIdx !== null ? 1500 : undefined)
+
+  const { loading: uploading, data: uploadResult, run: doUpload, mutate: clearUpload } = useRequest(
+    async (file: File) => uploadAndExtractText(file, (msg) => toast.error(msg)),
+    {
+      manual: true,
+      onSuccess: (result) => {
+        if (result) setText(result.text)
+        if (fileInputRef.current) fileInputRef.current.value = ''
+      },
+      onError: () => {
+        if (fileInputRef.current) fileInputRef.current.value = ''
+      },
+    },
+  )
+
+  const handleUndoUpload = () => {
+    setText(prevTextRef.current)
+    clearUpload(undefined)
+  }
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -79,24 +127,17 @@ export default function ReferencePage() {
     }
   }
 
-  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file) return
-    setUploading(true)
-    setUploadedFile('')
-    const result = await uploadAndExtractText(file, (msg) => toast.error(msg))
-    if (result) {
-      setText(result.text)
-      setUploadedFile(result.filename)
+    if (file) {
+      prevTextRef.current = text
+      doUpload(file)
     }
-    setUploading(false)
-    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   const handleCopyRef = async (ref: FormattedRef, idx: number) => {
     await navigator.clipboard.writeText(ref.text)
     setCopiedIdx(idx)
-    setTimeout(() => setCopiedIdx(null), 1500)
   }
 
   const handleCopyAll = async () => {
@@ -105,6 +146,7 @@ export default function ReferencePage() {
     toast.success('已复制全部参考文献')
   }
 
+  // 仅在流式完成时解析参考文献
   const references = streamedText && !isStreaming ? parseReferences(streamedText) : []
 
   return (
@@ -134,16 +176,26 @@ export default function ReferencePage() {
                   提取中...
                 </span>
               )}
-              {uploadedFile && !uploading && (
-                <span className="inline-flex items-center gap-1 text-xs text-green-600">
-                  <FileText size={12} />{uploadedFile}
-                </span>
+              {uploadResult && !uploading && (
+                <>
+                  <span className="inline-flex items-center gap-1 text-xs text-green-600">
+                    <FileText size={12} />{uploadResult.filename}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleUndoUpload}
+                    className="text-[10px] text-gray-400 hover:text-red-500 bg-white border border-gray-200 rounded px-1.5 py-0.5 transition-colors"
+                    title="撤消上传，恢复到上传前的文本"
+                  >
+                    撤消
+                  </button>
+                </>
               )}
               <input
                 ref={fileInputRef}
                 type="file"
                 accept=".docx,.pdf,.txt"
-                onChange={handleFileUpload}
+                onChange={handleFileChange}
                 className="hidden"
               />
               <button
@@ -191,7 +243,7 @@ export default function ReferencePage() {
         </div>
       </form>
 
-      {/* Loading */}
+      {/* Loading — 骨架屏 */}
       {isStreaming && (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
@@ -203,14 +255,13 @@ export default function ReferencePage() {
         </div>
       )}
 
-      {/* Error */}
       {error && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
           {error.message}
         </div>
       )}
 
-      {/* Results */}
+      {/* Results — 参考文献卡片列表 */}
       {references.length > 0 && !isStreaming && (
         <div className="space-y-3">
           {/* Toolbar */}
@@ -233,7 +284,7 @@ export default function ReferencePage() {
                 <Download size={14} />下载 TXT
               </button>
               <button
-                onClick={() => { reset(); setText(''); setUploadedFile('') }}
+                onClick={() => { reset(); setText('') }}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-600 transition-colors"
               >
                 <Trash2 size={14} />清空
@@ -241,17 +292,19 @@ export default function ReferencePage() {
             </div>
           </div>
 
-          {/* Reference cards */}
+          {/* Reference cards — 每条文献一张卡片 */}
           <div className="space-y-2">
             {references.map((ref, idx) => (
               <div
                 key={idx}
                 className="flex items-start gap-3 p-4 bg-white border border-gray-200 rounded-lg hover:border-gray-300 transition-colors group"
               >
+                {/* 类型标签 */}
                 <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold flex-shrink-0 mt-0.5 ${TYPE_COLORS[ref.refType] || 'bg-gray-100 text-gray-600'}`}>
                   [{ref.refType}] {TYPE_LABELS[ref.refType] || ref.refType}
                 </span>
                 <p className="flex-1 text-sm text-gray-800 leading-relaxed">{ref.text}</p>
+                {/* 单条复制按钮（hover 时显示） */}
                 <button
                   onClick={() => handleCopyRef(ref, idx)}
                   className="flex-shrink-0 p-1.5 text-gray-300 hover:text-gray-600 transition-colors opacity-0 group-hover:opacity-100"
@@ -263,7 +316,7 @@ export default function ReferencePage() {
             ))}
           </div>
 
-          {/* Raw output (collapsible) */}
+          {/* 原始输出（可折叠，调试用） */}
           <details className="text-xs text-gray-400">
             <summary className="cursor-pointer hover:text-gray-600">查看原始输出</summary>
             <pre className="mt-2 p-3 bg-gray-50 rounded-lg whitespace-pre-wrap text-xs">{streamedText}</pre>
@@ -271,7 +324,7 @@ export default function ReferencePage() {
         </div>
       )}
 
-      {/* Empty state */}
+      {/* 初始空状态 */}
       {!isStreaming && !streamedText && !error && (
         <div className="text-center py-12 text-gray-400 text-sm space-y-1">
           <BookOpen size={32} className="mx-auto mb-3 text-gray-300" />

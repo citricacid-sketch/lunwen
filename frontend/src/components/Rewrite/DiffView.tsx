@@ -1,3 +1,12 @@
+/**
+ * Rewrite/DiffView.tsx — 词级差异高亮视图
+ *
+ * 使用 Google diff-match-patch 库进行词级/语义级文本 diff。
+ *   - 绿色背景 + 下划线  = 新增内容
+ *   - 红色背景 + 删除线  = 删除内容
+ *
+ * diff 计算用 useMemo 缓存，仅在 original 或 rewritten 变化时重新计算。
+ */
 import { useMemo } from 'react'
 import { diff_match_patch as DiffMatchPatch } from 'diff-match-patch'
 
@@ -11,10 +20,11 @@ interface DiffSegment {
   text: string
 }
 
+/** 使用 diff-match-patch 计算词级差异 */
 function computeWordDiff(original: string, rewritten: string): DiffSegment[] {
   const dmp = new DiffMatchPatch()
   const diffs = dmp.diff_main(original, rewritten)
-  dmp.diff_cleanupSemantic(diffs)
+  dmp.diff_cleanupSemantic(diffs)  // 语义清理，让 diff 结果更易读
 
   const result: DiffSegment[] = diffs.map(([op, text]) => {
     if (op === 0) return { type: 'equal', text }
@@ -25,7 +35,7 @@ function computeWordDiff(original: string, rewritten: string): DiffSegment[] {
   return result
 }
 
-export default function DiffView({ original, rewritten }: Props) {
+export function DiffView({ original, rewritten }: Props) {
   const diffs = useMemo(() => computeWordDiff(original, rewritten), [original, rewritten])
 
   return (
@@ -57,6 +67,7 @@ export default function DiffView({ original, rewritten }: Props) {
           )}
         </p>
       </div>
+      {/* 图例 */}
       <div className="px-4 py-2 border-t border-gray-200 bg-gray-50 flex gap-4 text-xs text-gray-500">
         <span className="inline-flex items-center gap-1">
           <span className="w-3 h-3 rounded bg-green-100 border border-green-300" />

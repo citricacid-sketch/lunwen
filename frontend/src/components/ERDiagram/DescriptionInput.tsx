@@ -1,3 +1,12 @@
+/**
+ * ERDiagram/DescriptionInput.tsx — 图表生成输入表单
+ *
+ * 参数：
+ *   - 图表类型选择（8 种，按钮组）
+ *   - 场景描述（textarea + 文件上传）
+ *
+ * 每种图表类型都有对应的示例文本，点击「使用示例」一键填充。
+ */
 import { useState, type FormEvent } from 'react'
 import { GitBranch } from 'lucide-react'
 import type { DiagramType } from '../../types'
@@ -10,6 +19,7 @@ interface Props {
   onDiagramTypeChange: (type: DiagramType) => void
 }
 
+/** 每种图表类型的示例描述，帮助用户快速上手 */
 const EXAMPLES: Record<DiagramType, string> = {
   er: '学生可以选修多门课程，每门课程可以被多个学生选修。每个学生有学号、姓名、专业和入学日期。每门课程有课程号、课程名和学分。选修关系需要记录成绩和选课日期。',
   flowchart: '用户登录系统：首先输入用户名和密码，系统验证信息。如果验证通过则进入主页，如果验证失败则提示错误并允许重试，最多重试3次后锁定账户。',
@@ -23,7 +33,7 @@ const EXAMPLES: Record<DiagramType, string> = {
 
 const DIAGRAM_TYPES: DiagramType[] = ['er', 'flowchart', 'sequence', 'class', 'state', 'gantt', 'architecture', 'table']
 
-export default function DescriptionInput({ onSubmit, isLoading, diagramType, onDiagramTypeChange }: Props) {
+export function DescriptionInput({ onSubmit, isLoading, diagramType, onDiagramTypeChange }: Props) {
   const [description, setDescription] = useState('')
 
   const handleSubmit = (e: FormEvent) => {
@@ -39,10 +49,9 @@ export default function DescriptionInput({ onSubmit, isLoading, diagramType, onD
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* 图表类型选择 */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          图表类型
-        </label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">图表类型</label>
         <div className="flex flex-wrap gap-1.5">
           {DIAGRAM_TYPES.map((type) => (
             <button
@@ -61,10 +70,9 @@ export default function DescriptionInput({ onSubmit, isLoading, diagramType, onD
         </div>
       </div>
 
+      {/* 场景描述输入 */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          场景描述
-        </label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">场景描述</label>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
@@ -81,9 +89,7 @@ export default function DescriptionInput({ onSubmit, isLoading, diagramType, onD
           >
             使用示例
           </button>
-          <span className="text-xs text-gray-400">
-            {description.length} / 50000 字符
-          </span>
+          <span className="text-xs text-gray-400">{description.length} / 50000 字符</span>
         </div>
       </div>
 

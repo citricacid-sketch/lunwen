@@ -1,7 +1,19 @@
-import { useState, useEffect } from 'react'
+/**
+ * Layout/Sidebar.tsx — 桌面端侧边栏
+ *
+ * 包含：
+ *   - 应用品牌标识
+ *   - 导航链接（写作/图表/文献/导师）
+ *   - 底部：用户信息 + 模型状态（健康检查指示灯）+ 设置入口 + 退出
+ *
+ * 模型状态通过 useRequest 自动获取 /api/health，
+ * 在路由切换时（location.pathname 变化）自动刷新。
+ */
 import { NavLink, useLocation } from 'react-router-dom'
+import { useRequest } from 'ahooks'
 import { PenLine, GitBranch, MessageSquare, BookOpen, Settings, LogOut, User } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
+import { fetchHealth } from '../../services/api'
 
 const navItems = [
   { to: '/rewrite', label: '论文写作', icon: PenLine },
@@ -10,21 +22,22 @@ const navItems = [
   { to: '/chat', label: '论文导师', icon: MessageSquare },
 ]
 
-export default function Sidebar() {
+export function Sidebar() {
   const { user, logout } = useAuth()
   const location = useLocation()
-  const [modelInfo, setModelInfo] = useState<{ provider: string; model: string; available: boolean } | null>(null)
 
-  useEffect(() => {
-    fetch('/api/health')
-      .then((r) => r.json())
-      .then((data) => setModelInfo({
+  // 每次路由切换时重新检查后端健康状态（refreshDeps 驱动）
+  const { data: modelInfo } = useRequest(
+    async () => {
+      const data = await fetchHealth()
+      return {
         provider: data.provider || '未配置',
         model: data.model || '',
         available: data.llm_available ?? false,
-      }))
-      .catch(() => setModelInfo(null))
-  }, [location.pathname])  // refresh when route changes
+      }
+    },
+    { refreshDeps: [location.pathname] },
+  )
 
   return (
     <aside className="w-60 bg-white border-r border-gray-200 flex-shrink-0 hidden md:flex flex-col">
@@ -65,9 +78,8 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Footer: user info + settings + logout */}
+      {/* Footer */}
       <div className="p-3 border-t border-gray-100 space-y-2">
-        {/* User info */}
         {user && (
           <div className="flex items-center gap-2 px-3 py-2">
             <User size={14} className="text-gray-400" />
@@ -78,7 +90,7 @@ export default function Sidebar() {
           </div>
         )}
 
-        {/* Model status → settings */}
+        {/* 模型状态 + 设置入口（合二为一） */}
         <NavLink
           to="/settings"
           className={({ isActive }) =>
@@ -90,6 +102,7 @@ export default function Sidebar() {
           }
         >
           <div className="flex items-center gap-2">
+            {/* 健康状态指示灯：绿色=可用，灰色=不可用/加载中 */}
             <span className={`w-2 h-2 rounded-full flex-shrink-0 ${modelInfo?.available ? 'bg-green-500' : 'bg-gray-300'}`} />
             <Settings size={14} className="text-gray-400" />
             <div className="min-w-0 flex-1">
@@ -101,7 +114,6 @@ export default function Sidebar() {
           </div>
         </NavLink>
 
-        {/* Logout */}
         <button
           onClick={logout}
           className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors"

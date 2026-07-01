@@ -1,6 +1,14 @@
+/**
+ * Rewrite/ComparisonView.tsx — 原文/润色结果对比视图
+ *
+ * 两种查看模式：
+ *   1. 对比视图 — 原文和结果左右并排显示
+ *   2. 修订视图 — 使用 diff-match-patch 做词级差异高亮
+ *      （绿色 = 新增，红色 = 删除）
+ */
 import { useState } from 'react'
-import TextPanel from './TextPanel'
-import DiffView from './DiffView'
+import { TextPanel } from './TextPanel'
+import { DiffView } from './DiffView'
 import { Columns2, GitCompare } from 'lucide-react'
 
 interface Props {
@@ -8,11 +16,12 @@ interface Props {
   rewritten: string
 }
 
-export default function ComparisonView({ original, rewritten }: Props) {
+export function ComparisonView({ original, rewritten }: Props) {
   const [mode, setMode] = useState<'compare' | 'diff'>('compare')
 
   return (
     <div className="space-y-2">
+      {/* 模式切换 */}
       <div className="flex items-center gap-2">
         <div className="inline-flex bg-gray-100 rounded-lg p-0.5">
           <button

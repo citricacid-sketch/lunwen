@@ -1,4 +1,18 @@
+/**
+ * pages/LoginPage.tsx — 登录/注册页面
+ *
+ * 支持两种模式切换：
+ *   - 登录：用户名 + 密码
+ *   - 注册：用户名 + 密码 + 邮箱（选填）
+ *
+ * 使用 ahooks 的 useRequest 管理异步请求状态（loading/error），
+ * 使用 useBoolean 管理注册模式切换。
+ *
+ * 登录成功后通过 useAuth().login() 更新全局认证状态，
+ * 然后调用 onSuccess 回调通知父组件（App.tsx）跳转。
+ */
 import { useState, type FormEvent } from 'react'
+import { useRequest, useBoolean } from 'ahooks'
 import { useAuth } from '../contexts/AuthContext'
 import { AuthApi } from '../services/api'
 
@@ -6,39 +20,41 @@ interface Props {
   onSuccess: () => void
 }
 
-export default function LoginPage({ onSuccess }: Props) {
+export function LoginPage({ onSuccess }: Props) {
   const { login } = useAuth()
-  const [isRegister, setIsRegister] = useState(false)
+  const [isRegister, { toggle: toggleMode }] = useBoolean(false)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [email, setEmail] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
-
-    try {
-      let result: { token: string; username: string; user_id: number; role: string }
+  // useRequest 管理异步登录/注册请求
+  // manual: true — 不自动执行，由 handleSubmit 手动触发
+  // 根据 isRegister 决定调用 login 还是 register
+  const { loading, error, run: doSubmit } = useRequest(
+    async () => {
       if (isRegister) {
-        result = await AuthApi.register(username, password, email || undefined)
-      } else {
-        result = await AuthApi.login(username, password)
+        return AuthApi.register(username, password, email || undefined)
       }
-      login(result.token, {
-        user_id: result.user_id,
-        username: result.username,
-        email: null,
-        role: result.role,
-      })
-      onSuccess()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '操作失败')
-    } finally {
-      setLoading(false)
-    }
+      return AuthApi.login(username, password)
+    },
+    {
+      manual: true,
+      onSuccess: (result) => {
+        // 将后端返回的 token 和用户信息注入全局认证上下文
+        login(result.token, {
+          user_id: result.user_id,
+          username: result.username,
+          email: null,
+          role: result.role,
+        })
+        onSuccess()
+      },
+    },
+  )
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    doSubmit()
   }
 
   return (
@@ -53,9 +69,10 @@ export default function LoginPage({ onSuccess }: Props) {
             </p>
           </div>
 
+          {/* 错误提示 — useRequest 的 error 是 Error 对象，取 .message 显示 */}
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-              {error}
+              {error.message}
             </div>
           )}
 
@@ -106,9 +123,10 @@ export default function LoginPage({ onSuccess }: Props) {
             </button>
           </form>
 
+          {/* 模式切换 — useBoolean 的 toggle() 在 true/false 间切换 */}
           <div className="mt-4 text-center">
             <button
-              onClick={() => { setIsRegister(!isRegister); setError('') }}
+              onClick={toggleMode}
               className="text-sm text-indigo-600 hover:text-indigo-800"
             >
               {isRegister ? '已有账号？去登录' : '没有账号？去注册'}

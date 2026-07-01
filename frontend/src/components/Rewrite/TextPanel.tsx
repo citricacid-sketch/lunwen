@@ -1,10 +1,16 @@
+/**
+ * Rewrite/TextPanel.tsx — 文本展示面板
+ *
+ * 用于对比视图中的原文/润色结果并排展示。
+ * variant 控制边框颜色：original 白底灰框，rewritten 蓝底蓝框。
+ */
 interface Props {
   title: string
   content: string
   variant?: 'original' | 'rewritten'
 }
 
-export default function TextPanel({ title, content, variant = 'original' }: Props) {
+export function TextPanel({ title, content, variant = 'original' }: Props) {
   const bgClass = variant === 'original' ? 'bg-white border-gray-200' : 'bg-blue-50/50 border-blue-200'
 
   return (

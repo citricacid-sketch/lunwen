@@ -1,15 +1,37 @@
+/**
+ * pages/RewritePage.tsx — 论文写作页面（核心页面）
+ *
+ * 八种写作模式的统一入口，完整的润色工作流：
+ *   输入 → 流式生成 → 对比查看 → 迭代修改 → 导出/保存
+ *
+ * === 数据流 ===
+ *   RewriteInput (表单输入)
+ *     → useStreamRewrite (SSE 流管理)
+ *       → ComparisonView (原文/结果对比)
+ *         → RewriteToolbar (复制/导出/重试)
+ *           → useHistory (本地持久化)
+ *
+ * === 迭代修改 ===
+ *   用户对生成结果不满意时，可输入修改指令触发 triggerIterate，
+ *   后端在已有结果基础上做增量修改（而非重新生成）。
+ *
+ * === 历史记录 ===
+ *   本地存储（localStorage），支持回档到任意历史版本。
+ *   回档时使用 restore() 直接恢复缓存的文本，不走后端。
+ */
 import { useState } from 'react'
 import { useStreamRewrite } from '../hooks/useStreamRewrite'
 import { useHistory } from '../hooks/useHistory'
-import RewriteInput from '../components/Rewrite/RewriteInput'
-import ComparisonView from '../components/Rewrite/ComparisonView'
-import RewriteToolbar from '../components/Rewrite/RewriteToolbar'
-import LoadingSkeleton from '../components/Shared/LoadingSkeleton'
-import ErrorAlert from '../components/Shared/ErrorAlert'
-import HistoryPanel from '../components/Shared/HistoryPanel'
+import { RewriteInput } from '../components/Rewrite/RewriteInput'
+import { ComparisonView } from '../components/Rewrite/ComparisonView'
+import { RewriteToolbar } from '../components/Rewrite/RewriteToolbar'
+import { LoadingSkeleton } from '../components/Shared/LoadingSkeleton'
+import { ErrorAlert } from '../components/Shared/ErrorAlert'
+import { HistoryPanel } from '../components/Shared/HistoryPanel'
 import { ChevronDown, ChevronRight, History } from 'lucide-react'
 import type { HistoryEntry } from '../types'
 
+/** 模式/风格 → 中文显示名 */
 const MODE_LABELS: Record<string, string> = {
   rewrite: '学术润色',
   deweight: '降重改写',
@@ -27,11 +49,13 @@ const STYLE_LABELS: Record<string, string> = {
   expanded: '学术扩写',
 }
 
-export default function RewritePage() {
+export function RewritePage() {
+  // 用户输入的快照（用于重试和历史记录）
   const [originalText, setOriginalText] = useState('')
   const [currentMode, setCurrentMode] = useState('rewrite')
   const [currentStyle, setCurrentStyle] = useState('formal')
   const [currentLanguage, setCurrentLanguage] = useState('zh')
+  // UI 折叠状态
   const [showHistory, setShowHistory] = useState(false)
   const [showIterate, setShowIterate] = useState(false)
   const [iterateInstruction, setIterateInstruction] = useState('')
@@ -40,11 +64,16 @@ export default function RewritePage() {
     useStreamRewrite()
   const history = useHistory('rewrite')
 
+  /**
+   * 处理表单提交
+   * '__abort__' 是取消信号（RewriteInput 发送），其他情况正常触发润色
+   */
   const handleSubmit = (text: string, mode: string, style: string, language?: string) => {
     if (text === '__abort__') {
       abort()
       return
     }
+    // 保存输入快照，用于后续重试
     setOriginalText(text)
     setCurrentMode(mode)
     setCurrentStyle(style)
@@ -54,16 +83,19 @@ export default function RewritePage() {
     trigger(text, mode, style, language)
   }
 
+  /** 用相同参数重试 */
   const handleRetry = () => {
     trigger(originalText, currentMode, currentStyle)
   }
 
+  /** 迭代修改：在当前结果基础上，根据用户指令继续修改 */
   const handleIterate = () => {
     if (!iterateInstruction.trim() || isStreaming) return
     triggerIterate(originalText, streamedText, iterateInstruction.trim(), currentMode, currentStyle)
     setIterateInstruction('')
   }
 
+  /** 保存当前结果到本地历史记录 */
   const handleSaveToHistory = () => {
     if (!streamedText || !doneData) return
     history.addEntry(
@@ -74,6 +106,7 @@ export default function RewritePage() {
     )
   }
 
+  /** 从历史记录回档 */
   const handleRollback = (entry: HistoryEntry) => {
     setOriginalText(entry.input.text || '')
     setCurrentMode((entry.input.diagramType as string) || 'rewrite')
@@ -89,6 +122,7 @@ export default function RewritePage() {
     })
   }
 
+  /** 重置所有状态 */
   const handleReset = () => {
     reset()
     setOriginalText('')
@@ -121,6 +155,7 @@ export default function RewritePage() {
         </button>
       </div>
 
+      {/* 历史记录面板（可折叠） */}
       {showHistory && (
         <div className="bg-white border border-gray-200 rounded-lg p-3">
           <HistoryPanel
@@ -132,15 +167,21 @@ export default function RewritePage() {
         </div>
       )}
 
+      {/* 输入表单 */}
       <RewriteInput onSubmit={handleSubmit} isLoading={isStreaming} />
 
+      {/* 错误提示 + 重试 */}
       {error && <ErrorAlert message={error.message} onRetry={handleRetry} />}
 
+      {/* 流式进行中 → 骨架屏 */}
       {isStreaming && <LoadingSkeleton />}
 
+      {/* 流式完成 → 对比视图 + 操作栏 + 迭代面板 */}
       {streamedText && !isStreaming && doneData && (
         <>
           <ComparisonView original={originalText} rewritten={streamedText} />
+
+          {/* 统计信息 */}
           <div className="text-xs text-gray-400 flex gap-4 flex-wrap">
             <span>原文 {doneData.original_length} 字符</span>
             <span>→ 处理后 {doneData.rewritten_length} 字符</span>
@@ -155,12 +196,14 @@ export default function RewritePage() {
               <span className="text-blue-500 font-medium">迭代修改</span>
             )}
           </div>
+
           <RewriteToolbar rewritten={streamedText} onRetry={handleRetry} onReset={handleReset} />
 
           <button onClick={handleSaveToHistory} className="text-xs text-indigo-600 hover:text-indigo-800">
             保存到历史记录
           </button>
 
+          {/* 迭代修改面板 */}
           <div className="border border-gray-200 rounded-lg overflow-hidden">
             <button
               onClick={() => setShowIterate(!showIterate)}
@@ -195,6 +238,7 @@ export default function RewritePage() {
         </>
       )}
 
+      {/* 初始空状态 */}
       {!isStreaming && !streamedText && !error && (
         <div className="text-center py-12 text-gray-400 text-sm">
           选择功能模式，粘贴论文段落，点击「开始处理」即可

@@ -1,6 +1,8 @@
-# 论文整改工具 — 使用说明
+# 智能学术写作平台
 
-面向本科生的学术论文写作辅助工具，提供 8 种写作处理模式和 7 种图表生成能力，支持任意兼容 OpenAI 协议的大语言模型。
+面向本科生的 AI 学术论文写作辅助工具。8 种写作处理模式 + 7 种图表生成 + 多 Agent 协作，兼容任意 OpenAI 协议的大语言模型。
+
+> **AI Native 架构**：提示词系统驱动开发，分层 CLAUDE.md 自动加载，30 个自动化测试覆盖核心路径。
 
 ---
 
@@ -12,10 +14,10 @@
 |------|------|---------|
 | Python | >= 3.12 | https://www.python.org/downloads/ |
 | Node.js | >= 20 | https://nodejs.org/ |
-| uv | 最新版 | `pip install uv`（或 `winget install --id=astral-sh.uv`） |
-| Docker Desktop | 最新版 | 仅生产/数据库模式需要 |
+| uv | 最新版 | `pip install uv` |
+| Docker Desktop | 最新版 | 仅数据库模式需要 |
 
-### 方式一：开发模式（推荐日常使用）
+### 方式一：开发模式
 
 **1. 启动 MySQL**
 
@@ -23,23 +25,23 @@
 docker compose up -d db
 ```
 
-MySQL 暴露在 `localhost:3307`，避免与本机已有的 3306 冲突。
+MySQL 暴露在 `localhost:3307`，避免与本机 3306 冲突。
 
-**2. 配置后端环境变量**
+**2. 配置环境变量**
 
 ```bash
 cd backend
-cp .env.example .env   # 按需编辑 .env，至少填入 OPENAI_API_KEY
+cp .env.example .env   # 按需编辑，至少填入 OPENAI_API_KEY
 ```
 
-**3. 安装依赖并启动后端**
+**3. 启动后端**
 
 ```bash
 uv sync
 uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-**4. 启动前端**（新开一个终端）
+**4. 启动前端**（新终端）
 
 ```bash
 cd frontend
@@ -47,98 +49,42 @@ npm install
 npm run dev
 ```
 
-**5. 访问**
+**5. 访问** `http://localhost:5173`，首次使用进入「设置」配置 API Key。
 
-浏览器打开 `http://localhost:5173`，首次使用进入「设置」页面配置 LLM API Key。
-
-### 方式二：Docker Compose（一键部署）
+### 方式二：Docker 一键部署
 
 ```bash
-# 按需设置环境变量
 export MYSQL_ROOT_PASSWORD=your-password
 export JWT_SECRET=your-jwt-secret
-
 docker compose up -d
+# http://localhost:8000
 ```
-
-前端和后端一起构建并运行在 `http://localhost:8000`。
-
-### 配置模型
-
-启动后访问「设置」页面（`/settings`）：
-1. 选择提供商 → 填入 API Key → 测试连接 → 保存
-2. API Key 经加密后存储在数据库，不与前端传输
-3. 可创建多套配置，一键切换
 
 ---
 
 ## 功能说明
 
-### 一、论文写作助手（`/rewrite`）
+### 论文写作（`/rewrite`）— 7 种模式
 
-页面顶部有 7 种功能模式可供切换：
+| 模式 | 说明 |
+|------|------|
+| **学术润色** | 口语化 → 正式学术表达。三种风格：正式学术化 / 简洁精炼 / 学术扩写 |
+| **降重改写** | 句式变换、词汇替换、语序调整等多维策略降低重复率 |
+| **摘要生成** | 正文 → 摘要 + 关键词。结构：背景 → 方法 → 发现 → 结论 |
+| **结构优化** | 诊断段落逻辑问题：主题句明确性、论证顺序、支撑充分性、衔接流畅度 |
+| **语法校对** | 精确修正语法错误，遵循"最小修改原则" |
+| **引言/结论** | 根据正文内容提炼引言或结论，不编造数据 |
+| **文献综述** | 按主题脉络组织文献，述评结合而非简单罗列 |
 
-#### 学术润色
-将口语化或不规范的论文段落改写为正式学术表达。
+**操作流程**：
+1. 选择功能模式 → 粘贴论文段落（最多 50000 字）
+2. 点击「开始处理」→ 查看原文与结果并排对比
+3. 工具栏：复制 / 下载 Word / 下载 TXT / 重试 / 清空
+4. 支持文件上传（`.docx` / `.pdf` / `.txt`），上传后可用「撤消」恢复原文
+5. **迭代追问**：展开结果下方的面板，输入指令继续优化（可无限迭代）
+6. **历史记录**：右上角展开时间线，支持回档到任意版本（不重新调 API，即时恢复）
 
-- **正式学术化**：使用规范学术用语和客观陈述句式
-- **简洁精炼（缩写）**：删除冗余修饰，使文字更加凝练
-- **学术扩写**：丰富论证层次和逻辑衔接，增加深度
-
-#### 降重改写
-在保持原意的前提下，通过句式变换、词汇替换、语序调整等多维策略降低文字重复率。
-
-#### 摘要生成
-根据论文正文内容自动生成摘要和关键词。
-
-- 摘要结构：研究背景 → 方法 → 发现 → 结论
-- 字数控制：中文 200-300 字
-- 自动附关键词（3-5 个，分号分隔）
-
-#### 结构优化
-诊断段落的逻辑结构问题并重新组织：检查主题句明确性、论证顺序合理性、支撑充分性、衔接流畅度。
-
-#### 语法校对
-精确修正语法错误和表达不规范之处。遵循"最小修改原则"——只修改确实有问题的部分，不过度改写。
-
-#### 引言/结论生成
-根据正文内容生成引言或结论段落。基于用户提供的内容提炼，不编造研究背景或数据。
-
-#### 文献综述润色
-按主题脉络组织文献，实现述评结合而非简单罗列。使用规范的学术引用句式。
-
----
-
-### 操作方法（论文写作）
-
-1. 选择功能模式（如「学术润色」）
-2. 粘贴论文段落（最多 50000 字）
-3. 如选择「学术润色」，可选择子风格（正式/简洁/扩写）
-4. 点击「开始处理」
-5. 查看原文与处理结果的并排对比
-6. 使用工具栏：复制结果 / 下载 TXT / 重新处理 / 清空
-
-#### 追问迭代修改
-
-对结果不满意时，点击结果下方的「对此结果不满意？输入修改指令继续调整」：
-
-- 输入追加指令（如"把第三句话写得更学术化"）
-- 点击「进一步处理」
-- 系统在当前结果基础上根据指令针对性调整
-- 可无限迭代，每次都可继续追问
-
-#### 历史记录
-
-- 点击右上角「历史记录」展开时间线
-- 每次处理结果可手动「保存到历史记录」
-- 鼠标悬停可看到「回档」和「删除」按钮
-- 回档会立即恢复当时的输入和输出，无需重新调用 API
-
----
-
-### 二、图表生成（`/er-diagram`）
-
-支持 7 种 Mermaid 图表类型：
+### 图表生成（`/er-diagram`）— 8 种类型
 
 | 类型 | 适用场景 |
 |------|---------|
@@ -149,22 +95,23 @@ docker compose up -d
 | 状态图 | 状态流转、生命周期 |
 | 甘特图 | 项目计划、进度安排 |
 | 架构图 | 系统架构、组件关系 |
+| 表格插图 | 配置对比、数据表格 |
 
-### 操作方法（图表生成）
+每种类型提供示例文本，点击「使用示例」一键填充。图表/源码双模式切换，源码模式下可编辑 Mermaid 代码。
 
-1. 点击图表类型按钮（如「ER 图」）
-2. 用自然语言描述场景
-3. 点击「生成图表」
-4. 查看渲染的图表，可切换「图表/源码」视图
-5. 工具栏操作：导出 PNG / 导出 SVG / 复制源码 / 重新生成
+### 论文导师（`/chat`）
 
-> 源码模式下可编辑 Mermaid 代码，切换回图表模式即可看到修改后的效果。
+多轮对话助手。支持文件上传分析、Enter 发送、Shift+Enter 换行。
+
+### 参考文献格式化（`/reference`）
+
+任意格式 → GB/T 7714-2015 国家标准。支持 7 种文献类型（期刊/专著/学位论文/会议/专利/电子资源/标准），逐条复制或批量下载。
 
 ---
 
 ## 输出规范
 
-工具在提示词层面强制以下规范，确保输出符合学术论文要求：
+在提示词层面强制以下规范，确保输出符合学术论文要求：
 
 - 输出为连续自然段落，段落间空行分隔
 - 不出现项目符号、编号列表、"首先其次"等列表化表达
@@ -174,69 +121,70 @@ docker compose up -d
 
 ---
 
+## 配置模型
+
+「设置」页面（`/settings`）：
+1. 选择提供商 → 填入 API Key → 测试连接 → 保存
+2. 支持 7 种预设（OpenAI / DeepSeek / 通义千问 / 智谱 GLM / Moonshot / SiliconFlow / 自定义）
+3. API Key 加密存储，可创建多套配置一键切换
+
+---
+
+## 测试
+
+```bash
+# 后端 — pytest + SQLite（免 MySQL）
+cd backend && uv run pytest tests/ -v
+
+# 前端 — vitest + jsdom（免浏览器）
+cd frontend && npm test
+```
+
+---
+
 ## 项目结构
 
 ```
 lunwen/
-├── backend/                    # Python FastAPI 后端
+├── CLAUDE.md                    # AI Native 总控（提示词系统 + 自优化协议）
+├── backend/
+│   ├── CLAUDE.md                # Python 编码规范
 │   ├── app/
-│   │   ├── agents/             # 多 Agent 编排（改写 Agent + 审查 Agent）
-│   │   ├── api/                # API 路由
-│   │   │   ├── auth.py         # 用户注册/登录
-│   │   │   ├── rewrite.py      # 写作处理端点
-│   │   │   ├── er_diagram.py   # 图表生成端点
-│   │   │   ├── config.py       # 模型配置端点
-│   │   │   └── utils.py        # 文件上传/导出
-│   │   ├── auth/               # JWT + 密码哈希
-│   │   ├── db/                 # SQLAlchemy ORM 模型与会话
-│   │   ├── middleware/         # 限流中间件
-│   │   ├── models/             # Pydantic 请求/响应模型
-│   │   ├── preprocessing/      # 输入预处理管道（引用保护/敏感词过滤/分句）
-│   │   ├── prompts/            # 提示词模板（8 种写作 + 7 种图表）
-│   │   ├── rag/                # RAG 检索增强（文档加载/分块/向量存储/BM25 检索）
-│   │   ├── services/           # 业务逻辑
-│   │   │   ├── rewrite_service.py
-│   │   │   ├── er_diagram_service.py
-│   │   │   ├── config_service.py
-│   │   │   └── llm/            # LLM 抽象层（OpenAI 兼容协议）
-│   │   └── main.py             # FastAPI 应用入口
-│   ├── pyproject.toml
-│   └── run.py                  # 开发启动脚本
-├── frontend/                   # React + TypeScript 前端
+│   │   ├── api/                 # 路由：auth / rewrite / diagram / config / utils
+│   │   ├── services/            # 业务逻辑 + LLM 抽象层
+│   │   ├── models/              # Pydantic 请求/响应模型
+│   │   ├── db/                  # SQLAlchemy ORM + 会话
+│   │   ├── auth/                # JWT + bcrypt
+│   │   ├── prompts/             # 提示词模板
+│   │   ├── rag/                 # RAG 检索增强
+│   │   ├── agents/              # 多 Agent 编排
+│   │   └── main.py              # FastAPI 入口
+│   ├── tests/                   # pytest（conftest + auth + config + health）
+│   └── pyproject.toml
+├── frontend/
+│   ├── CLAUDE.md                # TS + React 编码规范
 │   └── src/
-│       ├── pages/              # 页面组件
-│       │   ├── LoginPage.tsx    # 登录/注册
-│       │   ├── RewritePage.tsx  # 论文写作助手
-│       │   ├── ERDiagramPage.tsx# 图表生成
-│       │   ├── ChatPage.tsx     # 多 Agent 对话
-│       │   ├── ReferencePage.tsx# 文献管理
-│       │   └── SettingsPage.tsx # 模型配置
-│       ├── components/
-│       │   ├── Auth/           # 登录子组件
-│       │   ├── Chat/           # 对话子组件
-│       │   ├── ERDiagram/      # 图表子组件
-│       │   ├── Layout/         # 应用壳 + 侧边栏
-│       │   ├── Reference/      # 文献子组件
-│       │   ├── Rewrite/        # 写作子组件
-│       │   └── Shared/         # 共用组件
-│       ├── contexts/           # React Context（Auth）
-│       ├── hooks/              # 自定义 Hooks（SSE 流式处理）
-│       ├── services/           # API 客户端
-│       └── types/              # TypeScript 类型定义
-├── docker-compose.yml          # MySQL + 后端容器编排
-└── Dockerfile                  # 多阶段构建（前端构建 + 后端运行）
+│       ├── pages/               # Login / Rewrite / ERDiagram / Chat / Reference / Settings
+│       ├── components/          # Layout / Rewrite / ERDiagram / Chat / Shared
+│       ├── hooks/               # useStreamRewrite / useStreamDiagram / useChat / useHistory
+│       ├── contexts/            # AuthContext
+│       ├── services/            # API 客户端 + SSE 流式解析
+│       ├── types/               # 全局类型定义
+│       └── utils/               # clipboard / download
+├── docker-compose.yml
+└── Dockerfile
 ```
+
+---
 
 ## 常见问题
 
-**Q: 支持哪些模型？**
-兼容 OpenAI Chat Completions 协议的模型均可。预设有 OpenAI、DeepSeek、通义千问、智谱 GLM、Moonshot、SiliconFlow，也可手动填写自定义 API 地址。
+**Q: 支持哪些模型？** — 兼容 OpenAI Chat Completions 协议的模型均可，预设 7 种提供商。
 
-**Q: 处理结果不满意怎么办？**
-使用「追问迭代」功能在结果基础上继续调整，或者切换不同风格重新处理。
+**Q: 结果不满意怎么办？** — 用「追问迭代」在当前结果上继续调整，可无限迭代。
 
-**Q: 历史记录存在哪里？**
-MySQL 数据库，与用户账号绑定，登录后可跨设备查看历史记录。
+**Q: 历史记录存在哪里？** — 本地 localStorage，与浏览器绑定（不依赖后端）。
 
-**Q: 提示词可以自定义吗？**
-提示词在 `backend/app/prompts/` 目录下，直接编辑 Python 文件后重启服务即可生效。
+**Q: 提示词可以自定义吗？** — 编辑 `backend/app/prompts/` 目录下的文件，重启后端生效。
+
+**Q: 参考了哪些规范？** — 阿里巴巴 Java 开发手册（嵩山版）+ f2e-spec 前端规约，详见 `CLAUDE.md`。

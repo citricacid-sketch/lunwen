@@ -1,4 +1,16 @@
+/**
+ * Rewrite/RewriteInput.tsx — 润色输入表单
+ *
+ * 论文写作页面顶部的输入区域，包含：
+ *   - 7 种功能模式选择（学术润色/降重改写/摘要生成/...）
+ *   - 润色风格选择（仅在学术润色模式下显示）
+ *   - 摘要语言切换（仅在摘要生成模式下显示）
+ *   - 文本输入框（支持粘贴 + 文件上传）
+ *
+ * 文件上传使用 ahooks useRequest，上传成功后自动将提取的文本填入 textarea。
+ */
 import { useState, useRef, type FormEvent, type ChangeEvent } from 'react'
+import { useRequest } from 'ahooks'
 import { Sparkles, Upload, Loader2, FileText } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { uploadAndExtractText } from '../../services/api'
@@ -24,14 +36,33 @@ const STYLES = [
   { value: 'expanded', label: '学术扩写' },
 ]
 
-export default function RewriteInput({ onSubmit, isLoading }: Props) {
+export function RewriteInput({ onSubmit, isLoading }: Props) {
   const [text, setText] = useState('')
   const [mode, setMode] = useState('rewrite')
   const [style, setStyle] = useState('formal')
   const [language, setLanguage] = useState('zh')
-  const [uploading, setUploading] = useState(false)
-  const [uploadedFile, setUploadedFile] = useState('')
+  const prevTextRef = useRef('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // 文件上传：manual 模式，用户选择文件后手动触发
+  const { loading: uploading, data: uploadResult, run: doUpload, mutate: clearUpload } = useRequest(
+    async (file: File) => uploadAndExtractText(file, (msg) => toast.error(msg)),
+    {
+      manual: true,
+      onSuccess: (result) => {
+        if (result) setText(result.text)
+        if (fileInputRef.current) fileInputRef.current.value = ''
+      },
+      onError: () => {
+        if (fileInputRef.current) fileInputRef.current.value = ''
+      },
+    },
+  )
+
+  const handleUndoUpload = () => {
+    setText(prevTextRef.current)
+    clearUpload(undefined)
+  }
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -40,24 +71,15 @@ export default function RewriteInput({ onSubmit, isLoading }: Props) {
     }
   }
 
-  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file) return
-
-    setUploading(true)
-    setUploadedFile('')
-    const result = await uploadAndExtractText(file, (msg) => {
-      toast.error(msg)
-    })
-
-    if (result) {
-      setText(result.text)
-      setUploadedFile(result.filename)
+    if (file) {
+      prevTextRef.current = text
+      doUpload(file)
     }
-    setUploading(false)
-    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
+  // 根据当前模式动态生成 placeholder 文案
   const placeholder =
     mode === 'abstract'
       ? language === 'en'
@@ -71,10 +93,9 @@ export default function RewriteInput({ onSubmit, isLoading }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* 功能模式选择 */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          功能模式
-        </label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">功能模式</label>
         <div className="flex flex-wrap gap-1.5">
           {MODES.map((m) => (
             <button
@@ -93,39 +114,39 @@ export default function RewriteInput({ onSubmit, isLoading }: Props) {
         </div>
       </div>
 
+      {/* 原文输入 + 文件上传 */}
       <div>
         <div className="flex items-center justify-between mb-1">
-          <label className="text-sm font-medium text-gray-700">
-            原文内容
-          </label>
+          <label className="text-sm font-medium text-gray-700">原文内容</label>
           <div className="flex items-center gap-2">
             {uploading && (
               <span className="inline-flex items-center gap-1 text-xs text-blue-600">
-                <Loader2 size={12} className="animate-spin" />
-                提取文字中...
+                <Loader2 size={12} className="animate-spin" />提取文字中...
               </span>
             )}
-            {uploadedFile && !uploading && (
-              <span className="inline-flex items-center gap-1 text-xs text-green-600">
-                <FileText size={12} />
-                {uploadedFile}
-              </span>
+            {uploadResult && !uploading && (
+              <>
+                <span className="inline-flex items-center gap-1 text-xs text-green-600">
+                  <FileText size={12} />{uploadResult.filename}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleUndoUpload}
+                  className="text-[10px] text-gray-400 hover:text-red-500 bg-white border border-gray-200 rounded px-1.5 py-0.5 transition-colors"
+                  title="撤消上传，恢复到上传前的文本"
+                >
+                  撤消
+                </button>
+              </>
             )}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".docx,.pdf,.txt"
-              onChange={handleFileUpload}
-              className="hidden"
-            />
+            <input ref={fileInputRef} type="file" accept=".docx,.pdf,.txt" onChange={handleFileChange} className="hidden" />
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
               className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-500 bg-white border border-gray-200 rounded-md hover:bg-gray-50 hover:text-gray-700 disabled:opacity-50 transition-colors"
             >
-              <Upload size={12} />
-              上传文件
+              <Upload size={12} />上传文件
             </button>
           </div>
         </div>
@@ -138,40 +159,32 @@ export default function RewriteInput({ onSubmit, isLoading }: Props) {
           className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm resize-y focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"
         />
         <div className="flex justify-between mt-1">
-          <span className="text-xs text-gray-400">
-            {text.length} / 50000 字符
-          </span>
-          <span className="text-xs text-gray-400">
-            支持粘贴文本或上传 .docx / .pdf 文件
-          </span>
+          <span className="text-xs text-gray-400">{text.length} / 50000 字符</span>
+          <span className="text-xs text-gray-400">支持粘贴文本或上传 .docx / .pdf 文件</span>
         </div>
       </div>
 
       <div className="flex items-center gap-4">
+        {/* 润色风格（仅在 rewrite 模式下显示） */}
         {mode === 'rewrite' && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              润色风格
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">润色风格</label>
             <select
               value={style}
               onChange={(e) => setStyle(e.target.value)}
               className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500"
             >
               {STYLES.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
-                </option>
+                <option key={s.value} value={s.value}>{s.label}</option>
               ))}
             </select>
           </div>
         )}
 
+        {/* 摘要语言（仅在 abstract 模式下显示） */}
         {mode === 'abstract' && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              摘要语言
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">摘要语言</label>
             <div className="inline-flex bg-gray-100 rounded-lg p-0.5">
               <button
                 type="button"
@@ -195,6 +208,7 @@ export default function RewriteInput({ onSubmit, isLoading }: Props) {
           </div>
         )}
 
+        {/* 提交按钮 — 文案随 mode 动态变化 */}
         <button
           type="submit"
           disabled={!text.trim() || isLoading}
@@ -204,6 +218,7 @@ export default function RewriteInput({ onSubmit, isLoading }: Props) {
           {isLoading ? '处理中...' : `开始${MODES.find((m) => m.value === mode)?.label || '处理'}`}
         </button>
 
+        {/* 取消按钮（仅在流式进行中显示） */}
         {isLoading && (
           <button
             type="button"

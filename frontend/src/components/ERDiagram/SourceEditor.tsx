@@ -1,9 +1,15 @@
+/**
+ * ERDiagram/SourceEditor.tsx — HTML 源码编辑器
+ *
+ * 可编辑的 textarea，用于图表源码模式。
+ * spellCheck=false 避免浏览器对 HTML 代码标记拼写错误。
+ */
 interface Props {
   value: string
   onChange: (code: string) => void
 }
 
-export default function SourceEditor({ value, onChange }: Props) {
+export function SourceEditor({ value, onChange }: Props) {
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1">

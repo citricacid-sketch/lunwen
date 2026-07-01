@@ -1,16 +1,28 @@
+/**
+ * pages/ERDiagramPage.tsx — 图表生成页面
+ *
+ * 用自然语言描述场景，自动生成八种类型的图表。
+ * 工作流：输入描述 → SSE 流式生成 → 渲染 HTML 图表 → 展示实体/关系列表
+ *
+ * === 与 RewritePage 的区别 ===
+ *   - 不支持迭代修改（图表是一次性生成的）
+ *   - 结果展示为 HTML 渲染（Mermaid → SVG/HTML）而非纯文本
+ *   - 额外展示解析出的实体（Entity）和关系（Relationship）
+ */
 import { useState } from 'react'
 import { useStreamDiagram } from '../hooks/useStreamERDiagram'
 import { useHistory } from '../hooks/useHistory'
-import DescriptionInput from '../components/ERDiagram/DescriptionInput'
-import DiagramView from '../components/ERDiagram/DiagramView'
-import EntityList from '../components/ERDiagram/EntityList'
-import LoadingSkeleton from '../components/Shared/LoadingSkeleton'
-import ErrorAlert from '../components/Shared/ErrorAlert'
-import HistoryPanel from '../components/Shared/HistoryPanel'
+import { DescriptionInput } from '../components/ERDiagram/DescriptionInput'
+import { DiagramView } from '../components/ERDiagram/DiagramView'
+import { EntityList } from '../components/ERDiagram/EntityList'
+import { LoadingSkeleton } from '../components/Shared/LoadingSkeleton'
+import { ErrorAlert } from '../components/Shared/ErrorAlert'
+import { HistoryPanel } from '../components/Shared/HistoryPanel'
 import { ChevronDown, ChevronRight, History } from 'lucide-react'
 import type { DiagramType, HistoryEntry } from '../types'
 
-export default function ERDiagramPage() {
+export function ERDiagramPage() {
+  // 输入快照（用于重试）
   const [description, setDescription] = useState('')
   const [diagramType, setDiagramType] = useState<DiagramType>('er')
   const [showHistory, setShowHistory] = useState(false)
@@ -32,6 +44,7 @@ export default function ERDiagramPage() {
     trigger(description, diagramType)
   }
 
+  /** 保存当前图表到本地历史 */
   const handleSaveToHistory = () => {
     if (!doneData?.html_code) return
     history.addEntry(
@@ -42,12 +55,12 @@ export default function ERDiagramPage() {
     )
   }
 
+  /** 从历史记录恢复图表（直接使用缓存的 HTML，不重新生成） */
   const handleRollback = (entry: HistoryEntry) => {
     setDescription(entry.input.text || '')
     if (entry.input.diagramType) {
       setDiagramType(entry.input.diagramType as DiagramType)
     }
-    // Restore from cached result instead of re-generating
     restore({
       html_code: entry.result.output,
       diagram_type: entry.input.diagramType || 'er',
@@ -112,13 +125,17 @@ export default function ERDiagramPage() {
 
       {doneData && !isStreaming && (
         <>
+          {/* HTML 图表渲染（Mermaid → SVG） */}
           <DiagramView htmlCode={doneData.html_code} />
+
+          {/* 实体/关系列表（仅 ER 图等有结构化数据的图表类型） */}
           {doneData.entities && doneData.entities.length > 0 && (
             <EntityList
               entities={doneData.entities as any[]}
               relationships={doneData.relationships as any[]}
             />
           )}
+
           <div className="flex items-center gap-3 pt-2">
             <button
               onClick={handleRetry}

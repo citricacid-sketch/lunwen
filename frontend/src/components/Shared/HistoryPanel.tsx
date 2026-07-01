@@ -1,3 +1,13 @@
+/**
+ * Shared/HistoryPanel.tsx — 历史记录面板
+ *
+ * 展示本地存储的修改历史列表，支持：
+ *   - 回档到某个历史版本（调用 onRollback）
+ *   - 删除单条记录
+ *   - 清空全部记录
+ *
+ * 同时服务于 RewritePage 和 ERDiagramPage，通过 entry.type 区分显示。
+ */
 import { Clock, Trash2, RotateCcw, MessageSquare, GitBranch } from 'lucide-react'
 import type { HistoryEntry } from '../../types'
 import { DIAGRAM_TYPE_LABELS } from '../../types'
@@ -9,7 +19,7 @@ interface Props {
   onClearAll: () => void
 }
 
-export default function HistoryPanel({ entries, onRollback, onDelete, onClearAll }: Props) {
+export function HistoryPanel({ entries, onRollback, onDelete, onClearAll }: Props) {
   if (entries.length === 0) {
     return (
       <div className="text-xs text-gray-400 py-4 text-center">
@@ -40,6 +50,7 @@ export default function HistoryPanel({ entries, onRollback, onDelete, onClearAll
           >
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
+                {/* 类型图标：论文写作 vs 图表生成 */}
                 {entry.type === 'rewrite' ? (
                   <MessageSquare size={12} className="text-blue-400 flex-shrink-0" />
                 ) : (
@@ -63,6 +74,7 @@ export default function HistoryPanel({ entries, onRollback, onDelete, onClearAll
                 })}
               </div>
             </div>
+            {/* 操作按钮（hover 才显示，减少视觉噪音） */}
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               <button
                 onClick={() => onRollback(entry)}

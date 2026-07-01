@@ -1,7 +1,27 @@
+/**
+ * pages/SettingsPage.tsx — LLM 模型配置管理页面
+ *
+ * 管理多个 LLM 模型配置（Profile），支持：
+ *   - 新增/编辑/删除配置
+ *   - 激活某个配置为当前使用
+ *   - 测试 API 连接
+ *   - 根据 provider 自动填充 API 地址和模型列表
+ *
+ * === Provider 预设 ===
+ *   后端提供 7 种 provider 的预设信息（base_url + models），
+ *   切换 provider 时自动填充 baseUrl 和 model 字段。
+ *
+ * === 三个 useRequest ===
+ *   1. 加载配置列表（自动执行）
+ *   2. 测试连接（手动触发）
+ *   3. 保存配置（手动触发，成功后自动刷新列表）
+ */
 import { useState, useEffect } from 'react'
+import { useRequest } from 'ahooks'
 import { Save, Wifi, CheckCircle, XCircle, Loader2, Trash2 } from 'lucide-react'
-import { getAuthHeaders } from '../services/api'
+import { ConfigApi } from '../services/api'
 
+/** 支持的 LLM Provider */
 const PROVIDERS = [
   { id: 'openai', label: 'OpenAI', desc: 'GPT-4o, GPT-4o-mini 等' },
   { id: 'deepseek', label: 'DeepSeek', desc: 'deepseek-chat, reasoner' },
@@ -22,35 +42,50 @@ interface Profile {
   is_active: boolean
 }
 
-export default function SettingsPage() {
-  const [profiles, setProfiles] = useState<Profile[]>([])
-  const [presets, setPresets] = useState<Record<string, { base_url: string; models: string[] }>>({})
+export function SettingsPage() {
+  // 编辑表单状态
   const [editingId, setEditingId] = useState<string | null>(null)
-  // Form state
   const [name, setName] = useState('')
   const [provider, setProvider] = useState('openai')
   const [baseUrl, setBaseUrl] = useState('')
   const [apiKey, setApiKey] = useState('')
   const [model, setModel] = useState('')
-  const [testing, setTesting] = useState(false)
-  const [testResult, setTestResult] = useState<'idle' | 'ok' | 'fail'>('idle')
-  const [testMessage, setTestMessage] = useState('')
-  const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
-    loadProfiles()
-  }, [])
+  // ── useRequest #1: 加载配置列表 ──
+  // 自动在挂载时执行，loadProfiles() 可在保存/删除后手动刷新
+  const { data: configData, run: loadProfiles } = useRequest(() => ConfigApi.get())
+  const profiles = configData?.profiles || []
+  const presets = configData?.presets || {}
 
-  const loadProfiles = () => {
-    fetch('/api/config', { headers: getAuthHeaders() })
-      .then((r) => r.json())
-      .then((data) => {
-        setProfiles(data.profiles || [])
-        if (data.presets) setPresets(data.presets)
-      })
-      .catch((e) => { console.error('Failed to load config:', e) })
-  }
+  // ── useRequest #2: 测试 API 连接 ──
+  // manual: true — 用户点击按钮时才触发
+  const { loading: testing, error: testError, data: testData, run: handleTest } = useRequest(
+    () => ConfigApi.test({ api_key: apiKey, base_url: baseUrl, model }),
+    { manual: true },
+  )
 
+  // ── useRequest #3: 保存配置 ──
+  // 成功后自动刷新列表并重置表单
+  const { loading: saving, error: saveError, run: runSave } = useRequest(
+    () =>
+      ConfigApi.saveProfile({
+        id: editingId || '',
+        name: name.trim(),
+        provider,
+        api_key: apiKey,
+        base_url: baseUrl,
+        model,
+      }),
+    {
+      manual: true,
+      onSuccess: () => {
+        loadProfiles()
+        startNew()
+      },
+    },
+  )
+
+  // 切换 provider 时，自动填充预设的 baseUrl 和 model
   useEffect(() => {
     const preset = presets[provider]
     if (preset) {
@@ -63,6 +98,7 @@ export default function SettingsPage() {
     }
   }, [provider])
 
+  /** 重置表单到新建模式 */
   const startNew = () => {
     setEditingId(null)
     setName('')
@@ -70,97 +106,32 @@ export default function SettingsPage() {
     setBaseUrl('')
     setApiKey('')
     setModel('')
-    setTestResult('idle')
   }
 
+  /** 进入编辑模式，填充已有配置数据 */
   const startEdit = (p: Profile) => {
     setEditingId(p.id)
     setName(p.name)
     setProvider(p.provider)
     setBaseUrl(p.base_url)
-    setApiKey('')  // don't reveal full key
+    setApiKey('')        // 不回填 API Key（安全考虑）
     setModel(p.model)
-    setTestResult('idle')
   }
 
   const activateProfile = (id: string) => {
-    fetch(`/api/config/activate/${id}`, { method: 'POST', headers: getAuthHeaders() })
+    ConfigApi.activateProfile(Number(id))
       .then(() => loadProfiles())
       .catch((e) => { console.error('Failed to activate profile:', e) })
   }
 
   const deleteProfile = (id: string) => {
     if (!confirm('确定删除此配置？')) return
-    fetch(`/api/config/profile/${id}`, { method: 'DELETE', headers: getAuthHeaders() })
+    ConfigApi.deleteProfile(Number(id))
       .then(() => {
         if (editingId === id) startNew()
         loadProfiles()
       })
       .catch((e) => { console.error('Failed to delete profile:', e) })
-  }
-
-  const handleTest = async () => {
-    setTesting(true)
-    setTestResult('idle')
-    try {
-      const res = await fetch('/api/config/test', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          api_key: apiKey,
-          base_url: baseUrl,
-          model,
-        }),
-      })
-      const data = await res.json()
-      if (res.ok && data.ok) {
-        setTestResult('ok')
-        setTestMessage('连接成功')
-      } else {
-        setTestResult('fail')
-        setTestMessage(data.detail || '连接失败')
-      }
-    } catch (e) {
-      setTestResult('fail')
-      setTestMessage(String(e))
-    } finally {
-      setTesting(false)
-    }
-  }
-
-  const [saveError, setSaveError] = useState('')
-
-  const handleSave = async () => {
-    if (!name.trim()) return
-    if (!editingId && !apiKey) return
-    setSaving(true)
-    setSaveError('')
-    try {
-      const res = await fetch('/api/config/profile', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          id: editingId || '',
-          name: name.trim(),
-          provider,
-          api_key: apiKey,
-          base_url: baseUrl,
-          model,
-        }),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: '保存失败' }))
-        setSaveError(err.detail || '保存失败')
-        return
-      }
-      loadProfiles()
-      startNew()
-      setSaveError('')
-    } catch (e) {
-      setSaveError('网络错误，请确认后端服务已启动')
-    } finally {
-      setSaving(false)
-    }
   }
 
   const activeProfile = profiles.find((p) => p.is_active)
@@ -177,7 +148,7 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      {/* Saved profiles */}
+      {/* 已保存的配置列表 */}
       {profiles.length > 0 && (
         <div className="space-y-2">
           <label className="block text-sm font-medium text-gray-700">已保存的配置</label>
@@ -224,7 +195,7 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Editor */}
+      {/* 编辑/新增表单 */}
       <div className="border-t pt-4 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-medium text-gray-700">
@@ -308,7 +279,7 @@ export default function SettingsPage() {
             测试连接
           </button>
           <button
-            onClick={handleSave}
+            onClick={runSave}
             disabled={!name.trim() || (!editingId && !apiKey) || saving}
             className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
           >
@@ -317,17 +288,26 @@ export default function SettingsPage() {
           </button>
         </div>
 
+        {/* 保存错误 */}
         {saveError && (
           <div className="flex items-center gap-2 p-3 rounded-lg text-sm bg-red-50 text-red-700">
             <XCircle size={16} />
-            {saveError}
+            {saveError.message}
           </div>
         )}
 
-        {testResult !== 'idle' && (
-          <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${testResult === 'ok' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-            {testResult === 'ok' ? <CheckCircle size={16} /> : <XCircle size={16} />}
-            {testMessage}
+        {/* 测试结果 — 成功 */}
+        {testData && !testing && (
+          <div className="flex items-center gap-2 p-3 rounded-lg text-sm bg-green-50 text-green-700">
+            <CheckCircle size={16} />
+            连接成功
+          </div>
+        )}
+        {/* 测试结果 — 失败 */}
+        {testError && !testing && (
+          <div className="flex items-center gap-2 p-3 rounded-lg text-sm bg-red-50 text-red-700">
+            <XCircle size={16} />
+            {testError.message}
           </div>
         )}
       </div>
