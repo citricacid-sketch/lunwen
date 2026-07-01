@@ -2,8 +2,6 @@
 
 面向本科生的 AI 学术论文写作辅助工具。8 种写作处理模式 + 7 种图表生成 + 多 Agent 协作，兼容任意 OpenAI 协议的大语言模型。
 
-> **AI Native 架构**：提示词系统驱动开发，分层 CLAUDE.md 自动加载，30 个自动化测试覆盖核心路径。
-
 ---
 
 ## 快速开始
@@ -146,9 +144,7 @@ cd frontend && npm test
 
 ```
 lunwen/
-├── CLAUDE.md                    # AI Native 总控（提示词系统 + 自优化协议）
 ├── backend/
-│   ├── CLAUDE.md                # Python 编码规范
 │   ├── app/
 │   │   ├── api/                 # 路由：auth / rewrite / diagram / config / utils
 │   │   ├── services/            # 业务逻辑 + LLM 抽象层
@@ -162,7 +158,6 @@ lunwen/
 │   ├── tests/                   # pytest（conftest + auth + config + health）
 │   └── pyproject.toml
 ├── frontend/
-│   ├── CLAUDE.md                # TS + React 编码规范
 │   └── src/
 │       ├── pages/               # Login / Rewrite / ERDiagram / Chat / Reference / Settings
 │       ├── components/          # Layout / Rewrite / ERDiagram / Chat / Shared
@@ -187,4 +182,4 @@ lunwen/
 
 **Q: 提示词可以自定义吗？** — 编辑 `backend/app/prompts/` 目录下的文件，重启后端生效。
 
-**Q: 参考了哪些规范？** — 阿里巴巴 Java 开发手册（嵩山版）+ f2e-spec 前端规约，详见 `CLAUDE.md`。
+**Q: 参考了哪些规范？** — 阿里巴巴 Java 开发手册（嵩山版）+ f2e-spec 前端规约。
